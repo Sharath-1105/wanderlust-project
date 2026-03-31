@@ -7,6 +7,7 @@ import authRoutes from "./routes/authRoutes.js";
 import placeRoutes from "./routes/placeRoutes.js";
 import tripRoutes from "./routes/tripRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
+import wishlistRoutes from "./routes/wishlistRoutes.js";
 
 dotenv.config();
 
@@ -16,11 +17,12 @@ app.use(cors());
 app.use(express.json());
 
 
-// ✅ ROUTES (IMPORTANT)
+// ✅ ROUTES
 app.use("/api/auth", authRoutes);
 app.use("/api/places", placeRoutes);
 app.use("/api/trips", tripRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/wishlist", wishlistRoutes);
 
 
 // ✅ CONNECT DB

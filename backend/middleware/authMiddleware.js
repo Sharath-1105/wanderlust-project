@@ -1,8 +1,8 @@
-const jwt = require("jsonwebtoken");
-const User = require("../models/User");
+import jwt from "jsonwebtoken";
+import User from "../models/User.js";
 
 // 🔐 VERIFY TOKEN
-exports.verifyToken = async (req, res, next) => {
+export const verifyToken = async (req, res, next) => {
   try {
     const token = req.headers.authorization;
 
@@ -22,7 +22,7 @@ exports.verifyToken = async (req, res, next) => {
 
 
 // 👤 USER ONLY
-exports.isUser = (req, res, next) => {
+export const isUser = (req, res, next) => {
   if (req.user.role !== "user") {
     return res.status(403).json({ msg: "Access denied (User only)" });
   }
@@ -31,7 +31,7 @@ exports.isUser = (req, res, next) => {
 
 
 // 👨‍💼 ADMIN ONLY
-exports.isAdmin = (req, res, next) => {
+export const isAdmin = (req, res, next) => {
   if (req.user.role !== "admin") {
     return res.status(403).json({ msg: "Access denied (Admin only)" });
   }

@@ -24,18 +24,31 @@ router.post("/", verifyToken, isUser, async (req, res) => {
   try {
     const { places, days, persons, startDate } = req.body;
 
+    // ✅ VALIDATION: must select at least 1 place
     if (!places || places.length === 0) {
-      return res.status(400).json({ msg: "Select places" });
+      return res.status(400).json({ msg: "Select at least 1 place" });
     }
 
     if (!startDate) {
       return res.status(400).json({ msg: "Select start date" });
     }
 
+    if (!days || Number(days) < 1) {
+      return res.status(400).json({ msg: "Days must be at least 1" });
+    }
+
+    // ✅ VALIDATION: max 3 places per day
+    const maxPlaces = Number(days) * 3;
+    if (places.length > maxPlaces) {
+      return res.status(400).json({
+        msg: `Too many places. Max ${maxPlaces} place(s) for ${days} day(s) (3 per day limit)`,
+      });
+    }
+
     let totalCost = 0;
 
     places.forEach((p) => {
-      totalCost += (p.entryFee + p.transportCost) * persons * days;
+      totalCost += (Number(p.entryFee || 0) + Number(p.transportCost || 0)) * Number(persons) * Number(days);
     });
 
     // ✅ CALCULATE END DATE
@@ -59,7 +72,7 @@ router.post("/", verifyToken, isUser, async (req, res) => {
 
     res.json(trip);
   } catch (err) {
-    console.log(err);
+    console.error(err);
     res.status(500).json({ msg: "Error booking trip" });
   }
 });
@@ -68,7 +81,7 @@ router.post("/", verifyToken, isUser, async (req, res) => {
 // ================= GET MY TRIPS =================
 router.get("/", verifyToken, isUser, async (req, res) => {
   try {
-    const trips = await Trip.find({ userId: req.user._id });
+    const trips = await Trip.find({ userId: req.user._id }).sort({ createdAt: -1 });
 
     const updatedTrips = trips.map((trip) => {
       const status = getStatus(trip.startDate, trip.endDate);

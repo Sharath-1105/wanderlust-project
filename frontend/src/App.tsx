@@ -5,6 +5,9 @@ import Dashboard from "./pages/Dashboard";
 import BookTrip from "./pages/BookTrip";
 import MyTrips from "./pages/MyTrips";
 import Register from "./pages/Register";
+import MyWishlist from "./pages/MyWishlist";
+import ExplorePlaces from "./pages/ExplorePlaces";
+import AdminDashboard from "./pages/AdminDashboard";
 
 
 
@@ -14,9 +17,12 @@ function App() {
       <Route path="/" element={<Login />} />
       <Route path="/admin-login" element={<AdminLogin />} />
       <Route path="/dashboard" element={<Dashboard />} />
+      <Route path="/admin-dashboard" element={<AdminDashboard />} />
       <Route path="/book-trip" element={<BookTrip />} />
       <Route path="/my-trips" element={<MyTrips />} />
       <Route path="/register" element={<Register />} />
+      <Route path="/my-wishlist" element={<MyWishlist />} />
+      <Route path="/explore" element={<ExplorePlaces />} />
 
 
     </Routes>

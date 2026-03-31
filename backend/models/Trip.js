@@ -5,6 +5,7 @@ const tripSchema = new mongoose.Schema(
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
+      required: true,
     },
 
     places: [
@@ -12,21 +13,27 @@ const tripSchema = new mongoose.Schema(
         name: String,
         state: String,
         district: String,
+        location: String,
+        type: String,
+        image: String,
+        description: String,
         entryFee: Number,
         transportCost: Number,
+        price: Number,
+        rating: Number,
       },
     ],
 
-    days: Number,
-    persons: Number,
+    days: { type: Number, required: true },
+    persons: { type: Number, required: true },
     totalCost: Number,
 
-    // ✅ ADDED
     startDate: Date,
     endDate: Date,
 
     status: {
       type: String,
+      enum: ["upcoming", "ongoing", "completed"],
       default: "upcoming",
     },
   },
