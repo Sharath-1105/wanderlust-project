@@ -8,21 +8,10 @@ const tripSchema = new mongoose.Schema(
       required: true,
     },
 
-    places: [
-      {
-        name: String,
-        state: String,
-        district: String,
-        location: String,
-        type: String,
-        image: String,
-        description: String,
-        entryFee: Number,
-        transportCost: Number,
-        price: Number,
-        rating: Number,
-      },
-    ],
+    places: {
+      type: [mongoose.Schema.Types.Mixed],
+      default: [],
+    },
 
     days: { type: Number, required: true },
     persons: { type: Number, required: true },

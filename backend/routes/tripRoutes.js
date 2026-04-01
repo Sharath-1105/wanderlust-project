@@ -20,12 +20,32 @@ const getStatus = (startDate, endDate) => {
 
 
 // ================= BOOK TRIP =================
-router.post("/", verifyToken, isUser, async (req, res) => {
+router.post("/", verifyToken, async (req, res) => {
   try {
-    const { places, days, persons, startDate } = req.body;
+    let { places, days, persons, startDate } = req.body;
+
+    // Log everything for diagnosis
+    console.log("[BOOK TRIP] user:", req.user?._id, "role:", req.user?.role);
+    console.log("[BOOK TRIP] days:", days, "persons:", persons, "startDate:", startDate);
+    console.log("[BOOK TRIP] places type:", typeof places, "isArray:", Array.isArray(places));
+    if (Array.isArray(places)) {
+      console.log("[BOOK TRIP] places count:", places.length);
+      console.log("[BOOK TRIP] places[0] type:", typeof places[0], JSON.stringify(places[0])?.slice(0, 100));
+    } else {
+      console.log("[BOOK TRIP] places value:", String(places).slice(0, 200));
+    }
+
+    // Defensive: if places came in as a JSON string, parse it
+    if (typeof places === "string") {
+      try { places = JSON.parse(places); } catch { places = []; }
+    }
+    // Defensive: if it's a nested single-element string array
+    if (Array.isArray(places) && places.length === 1 && typeof places[0] === "string") {
+      try { places = JSON.parse(places[0]); } catch { /** keep as-is */ }
+    }
 
     // ✅ VALIDATION: must select at least 1 place
-    if (!places || places.length === 0) {
+    if (!places || !Array.isArray(places) || places.length === 0) {
       return res.status(400).json({ msg: "Select at least 1 place" });
     }
 
@@ -35,6 +55,10 @@ router.post("/", verifyToken, isUser, async (req, res) => {
 
     if (!days || Number(days) < 1) {
       return res.status(400).json({ msg: "Days must be at least 1" });
+    }
+
+    if (!persons || Number(persons) < 1) {
+      return res.status(400).json({ msg: "Persons must be at least 1" });
     }
 
     // ✅ VALIDATION: max 3 places per day
@@ -72,14 +96,14 @@ router.post("/", verifyToken, isUser, async (req, res) => {
 
     res.json(trip);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ msg: "Error booking trip" });
+    console.error("Trip booking error:", err?.message || err);
+    res.status(500).json({ msg: "Error booking trip", detail: err?.message });
   }
 });
 
 
 // ================= GET MY TRIPS =================
-router.get("/", verifyToken, isUser, async (req, res) => {
+router.get("/", verifyToken, async (req, res) => {
   try {
     const trips = await Trip.find({ userId: req.user._id }).sort({ createdAt: -1 });
 

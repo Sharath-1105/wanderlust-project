@@ -109,7 +109,7 @@ export default function MyTrips() {
               <h3 className="font-semibold mt-4 mb-2">Places:</h3>
 
               <ul className="list-disc ml-5 space-y-2">
-                {trip.places.map((place: any, i: number) => (
+                {(trip.places || []).map((place: any, i: number) => (
                   <li key={i}>
                     <b>{place.name}</b>
                     <div className="text-sm text-gray-600">

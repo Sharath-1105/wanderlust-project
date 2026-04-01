@@ -72,6 +72,13 @@ export default function Dashboard() {
           >
             🗺️ Explore Places
           </button>
+
+          <button
+            onClick={() => navigate("/ai-trip")}
+            className="bg-gradient-to-r from-indigo-600 to-violet-600 text-white px-6 py-3 rounded hover:from-indigo-700 hover:to-violet-700 shadow-md"
+          >
+            🤖 AI Trip Planner
+          </button>
         </div>
 
         <button

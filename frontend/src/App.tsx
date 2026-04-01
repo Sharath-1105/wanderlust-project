@@ -8,6 +8,7 @@ import Register from "./pages/Register";
 import MyWishlist from "./pages/MyWishlist";
 import ExplorePlaces from "./pages/ExplorePlaces";
 import AdminDashboard from "./pages/AdminDashboard";
+import AITripPlanner from "./pages/AITripPlanner";
 
 
 
@@ -23,6 +24,7 @@ function App() {
       <Route path="/register" element={<Register />} />
       <Route path="/my-wishlist" element={<MyWishlist />} />
       <Route path="/explore" element={<ExplorePlaces />} />
+      <Route path="/ai-trip" element={<AITripPlanner />} />
 
 
     </Routes>

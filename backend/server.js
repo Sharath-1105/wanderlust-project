@@ -8,6 +8,7 @@ import placeRoutes from "./routes/placeRoutes.js";
 import tripRoutes from "./routes/tripRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
 import wishlistRoutes from "./routes/wishlistRoutes.js";
+import aiRoutes from "./routes/aiRoutes.js";
 
 dotenv.config();
 
@@ -23,6 +24,7 @@ app.use("/api/places", placeRoutes);
 app.use("/api/trips", tripRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/wishlist", wishlistRoutes);
+app.use("/api/ai-trip", aiRoutes);
 
 
 // ✅ CONNECT DB
