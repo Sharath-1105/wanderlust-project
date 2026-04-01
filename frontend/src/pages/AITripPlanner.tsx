@@ -25,6 +25,13 @@ interface TripPlan {
   title: string;
   summary: string;
   state?: string;
+  fromLocation?: string;
+  transport?: string;
+  distance?: number;
+  routeOrder?: string[];
+  placeCost?: number;
+  transportCost?: number;
+  foodCost?: number;
   totalEstimatedCost: number;
   places: PlaceSuggestion[];
   itinerary: ItineraryDay[];
@@ -155,14 +162,17 @@ export default function AITripPlanner() {
   }, [navigate]);
 
   // Plan state
-  const [budget, setBudget] = useState("");
-  const [days, setDays] = useState("");
-  const [selectedState, setSelectedState] = useState("");
+  const [budget,          setBudget]          = useState("");
+  const [days,            setDays]            = useState("");
+  const [selectedState,   setSelectedState]   = useState("");
+  const [fromLocation,    setFromLocation]    = useState("");
+  const [transport,       setTransport]       = useState("");
+  const [distance,        setDistance]        = useState("");
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [plan, setPlan] = useState<TripPlan | null>(null);
-  const [error, setError] = useState("");
-  const [activeTab, setActiveTab] = useState<"itinerary" | "places" | "tips">("itinerary");
+  const [loading,  setLoading]  = useState(false);
+  const [plan,     setPlan]     = useState<TripPlan | null>(null);
+  const [error,    setError]    = useState("");
+  const [activeTab, setActiveTab] = useState<"itinerary" | "places" | "tips" | "cost">("itinerary");
 
   // Booking state
   const [showBookModal, setShowBookModal] = useState(false);
@@ -184,20 +194,25 @@ export default function AITripPlanner() {
   // ── Generate Plan — uses axios API (proven to attach token) ──
   const handleGenerate = async () => {
     setError("");
-    if (!budget || !days) return setError("Please enter your budget and number of days.");
-    if (!selectedState) return setError("Please select an Indian state to explore.");
+    if (!budget || !days)    return setError("Please enter your budget and number of days.");
+    if (!selectedState)      return setError("Please select an Indian state to explore.");
     if (Number(budget) < 500) return setError("Minimum budget is ₹500.");
     if (Number(days) < 1 || Number(days) > 30) return setError("Days must be between 1 and 30.");
     if (selectedInterests.length === 0) return setError("Select at least one interest.");
+    if (transport && (!distance || Number(distance) < 1))
+      return setError("Enter estimated distance from your location for transport cost.");
 
     setLoading(true);
     setPlan(null);
     try {
       const res = await API.post("/ai-trip", {
-        budget: Number(budget),
-        days: Number(days),
-        interests: selectedInterests,
-        state: selectedState,
+        budget:       Number(budget),
+        days:         Number(days),
+        interests:    selectedInterests,
+        state:        selectedState,
+        fromLocation: fromLocation || undefined,
+        transport:    transport    || undefined,
+        distance:     Number(distance) || undefined,
       });
       setPlan(res.data.plan);
       setActiveTab("itinerary");
@@ -238,24 +253,23 @@ export default function AITripPlanner() {
 
     if (placesToBook.length === 0) return showToast("No valid places to book", "error");
 
-    // Final safety: round-trip through JSON to ensure wire-safe plain object
-    const safePlaces: object[] = JSON.parse(JSON.stringify(placesToBook));
-
     setBooking(true);
     try {
-      // axios API interceptor attaches the token from localStorage automatically
+      const safePlaces: object[] = JSON.parse(JSON.stringify(placesToBook));
       await API.post("/trips", {
-        places: safePlaces,
-        days: numDays,
-        persons: numPersons,
-        startDate: bookDate,
+        places:       safePlaces,
+        days:         numDays,
+        persons:      numPersons,
+        startDate:    bookDate,
+        fromLocation: plan.fromLocation || fromLocation || "",
+        transport:    plan.transport    || transport    || "",
+        distance:     plan.distance     || Number(distance) || 0,
       });
       setShowBookModal(false);
       showToast("Trip booked successfully! 🎉");
       setTimeout(() => navigate("/my-trips"), 1800);
     } catch (err: any) {
-      const msg = err?.response?.data?.msg || err?.response?.data?.message || err?.message || "Error booking trip.";
-      console.error("Booking failed:", msg, err?.response?.data);
+      const msg = err?.response?.data?.msg || err?.message || "Error booking trip.";
       showToast(msg, "error");
     } finally {
       setBooking(false);
@@ -399,6 +413,43 @@ export default function AITripPlanner() {
             </div>
           </div>
 
+          {/* From Location + Transport row */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1 uppercase tracking-wide">
+                📌 From Location <span className="text-gray-300 font-normal normal-case">(optional)</span>
+              </label>
+              <input type="text" placeholder="e.g. Bangalore, Mumbai..."
+                value={fromLocation} onChange={e => setFromLocation(e.target.value)}
+                className={inputCls} />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1 uppercase tracking-wide">Transport Mode</label>
+              <select value={transport} onChange={e => setTransport(e.target.value)} className={inputCls}>
+                <option value="">🚶 No vehicle / Self-arranged</option>
+                <option value="Bus">🚌 Bus — ₹5/km</option>
+                <option value="Train">🚂 Train — ₹7/km</option>
+                <option value="Car">🚗 Car / Cab — ₹10/km</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Distance — shown only when transport selected */}
+          {transport && (
+            <div className="mb-5">
+              <label className="block text-xs font-semibold text-gray-500 mb-1 uppercase tracking-wide">
+                Estimated Distance (km, one-way) <span className="text-red-400">*</span>
+              </label>
+              <div className="flex items-center gap-2">
+                <input type="number" min="0" placeholder="e.g. 250"
+                  value={distance} onChange={e => setDistance(e.target.value)}
+                  className={inputCls} />
+                <span className="text-sm text-gray-400 whitespace-nowrap">km × 2</span>
+              </div>
+              <p className="text-xs text-gray-400 mt-1">Rate includes return journey</p>
+            </div>
+          )}
+
           {/* Budget & Days */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
             <div>
@@ -483,7 +534,7 @@ export default function AITripPlanner() {
 
             {/* Tabs */}
             <div className="flex gap-2 bg-white/20 rounded-xl p-1 backdrop-blur">
-              {(["itinerary", "places", "tips"] as const).map((tab) => (
+              {(["itinerary", "places", "cost", "tips"] as const).map((tab) => (
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
@@ -492,8 +543,9 @@ export default function AITripPlanner() {
                   }`}
                 >
                   {tab === "itinerary" && "📅 "}
-                  {tab === "places" && "🗺️ "}
-                  {tab === "tips" && "💡 "}
+                  {tab === "places"    && "🗺️ "}
+                  {tab === "cost"      && "💰 "}
+                  {tab === "tips"      && "💡 "}
                   {tab.charAt(0).toUpperCase() + tab.slice(1)}
                 </button>
               ))}
@@ -501,7 +553,69 @@ export default function AITripPlanner() {
 
             {activeTab === "itinerary" && (
               <div className="space-y-3">
+                {/* Route strip */}
+                {plan.routeOrder && plan.routeOrder.length > 0 && (
+                  <div className="bg-white/95 rounded-2xl p-4 shadow">
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">🛣️ Travel Route</p>
+                    <div className="flex flex-wrap items-center gap-1">
+                      {plan.routeOrder.map((stop, i) => (
+                        <span key={i} className="flex items-center gap-1">
+                          <span className={`text-xs px-3 py-1.5 rounded-full font-semibold ${
+                            i === 0 || i === plan.routeOrder!.length - 1
+                              ? "bg-indigo-600 text-white"
+                              : "bg-indigo-50 text-indigo-700 border border-indigo-200"
+                          }`}>{stop}</span>
+                          {i < plan.routeOrder!.length - 1 && (
+                            <span className="text-gray-400 text-xs">→</span>
+                          )}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 {(plan.itinerary || []).map((day) => <DayCard key={day.day} day={day} />)}
+              </div>
+            )}
+
+            {activeTab === "cost" && (
+              <div className="bg-white/95 rounded-2xl p-6 shadow-xl space-y-4">
+                <h3 className="text-lg font-bold text-gray-800 mb-2">💰 Cost Breakdown</h3>
+
+                {/* Cost table */}
+                <div className="space-y-2">
+                  {[
+                    { icon: "🎟", label: "Places (entry fees)",       value: plan.placeCost     },
+                    { icon: plan.transport === "Car" ? "🚗" : plan.transport === "Bus" ? "🚌" : "🚂",
+                      label: `Transport (${plan.transport || "self-arranged"})${
+                        plan.distance ? ` · ${plan.distance} km × 2` : ""
+                      }`, value: plan.transportCost },
+                    { icon: "🍽", label: `Food (${days} days × 3 meals × ₹150)`, value: plan.foodCost },
+                  ].map((row) => row.value != null && (
+                    <div key={row.label} className="flex justify-between items-center py-2 border-b border-gray-100">
+                      <span className="text-sm text-gray-600">{row.icon} {row.label}</span>
+                      <span className="font-semibold text-gray-800">₹{(row.value).toLocaleString()}</span>
+                    </div>
+                  ))}
+                  <div className="flex justify-between items-center pt-2">
+                    <span className="font-extrabold text-gray-800">💳 TOTAL (per person)</span>
+                    <span className="font-extrabold text-indigo-700 text-lg">₹{plan.totalEstimatedCost?.toLocaleString()}</span>
+                  </div>
+                </div>
+
+                {/* Formula note */}
+                <div className="bg-indigo-50 rounded-xl p-4 text-xs text-indigo-700 space-y-1">
+                  <p className="font-semibold mb-1">Formula used:</p>
+                  <p>🚗 Car → ₹10/km &nbsp; 🚌 Bus → ₹5/km &nbsp; 🚂 Train → ₹7/km</p>
+                  <p>🍽 Food → ₹150/meal × 3 meals/day × days</p>
+                  <p>🔄 Distance includes return journey (×2)</p>
+                </div>
+
+                {fromLocation && plan.routeOrder && (
+                  <div className="bg-gray-50 rounded-xl p-3">
+                    <p className="text-xs font-semibold text-gray-500 mb-2">Route:</p>
+                    <p className="text-sm text-gray-700">{plan.routeOrder.join(" → ")}</p>
+                  </div>
+                )}
               </div>
             )}
 

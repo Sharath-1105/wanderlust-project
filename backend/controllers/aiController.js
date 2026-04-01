@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { calcCosts, TRANSPORT_RATES } from "../utils/costUtils.js";
 
 // ─── State-keyed place database ──────────────────────────────────────────────
 // Each state has a curated list of real destinations with interest tags
@@ -150,9 +151,10 @@ const TIPS_POOL = [
   "Keep photocopies of your ID separate from the originals.",
 ];
 
-// ─── State-aware local plan generator ───────────────────────────────────────
-function generateLocalPlan(budget, days, interests, state) {
-  const stateName = state || "India"; // fallback
+// ─── State-aware local plan generator ────────────────────────────────────────
+function generateLocalPlan(budget, days, interests, state, fromLocation, transport, distance) {
+  const stateName = state || "India";
+  const from = fromLocation || "Your Location";
 
   // Get places for selected state (or generic)
   let statePlaces = STATE_PLACES[stateName] || GENERIC_PLACES;
@@ -222,6 +224,22 @@ function generateLocalPlan(budget, days, interests, state) {
     ctx.language ? `Local language: ${ctx.language} — learn a few phrases for a warmer welcome!` : null,
   ].filter(Boolean);
 
+  // ── Cost breakdown (same formula as booking system) ─────────
+  const costs = calcCosts({
+    places: selectedPlaces,
+    days:      Number(days),
+    persons:   1,           // per-person base — frontend multiplies by actual persons
+    transport: transport || "",
+    distance:  Number(distance) || 200,  // default 200 km if not provided
+  });
+
+  // ── Route order: fromLocation → places in visit order ────────
+  const routeOrder = [
+    from,
+    ...selectedPlaces.map(p => p.name),
+    from,  // return
+  ];
+
   const places = selectedPlaces.map(p => ({
     name: p.name,
     type: p.type,
@@ -232,9 +250,16 @@ function generateLocalPlan(budget, days, interests, state) {
 
   return {
     title: `${days}-Day ${stateName} Trip — ${interests.slice(0, 2).join(" & ")}`,
-    summary: `A curated ${days}-day itinerary across ${stateName}, focused on ${interests.join(", ")}, crafted to fit your ₹${budget.toLocaleString()} budget.`,
+    summary: `A curated ${days}-day itinerary across ${stateName} starting from ${from}, focused on ${interests.join(", ")}, crafted to fit your ₹${budget.toLocaleString()} budget.`,
     state: stateName,
-    totalEstimatedCost,
+    fromLocation: from,
+    transport: transport || "",
+    distance: Number(distance) || 200,
+    routeOrder,
+    placeCost:     costs.placeCost,
+    transportCost: costs.transportCost,
+    foodCost:      costs.foodCost,
+    totalEstimatedCost: costs.totalCost,
     places,
     itinerary,
     tips,
@@ -252,49 +277,63 @@ const getClient = () => {
 // ─── POST /api/ai-trip ───────────────────────────────────────────────────────
 export const generateTripPlan = async (req, res) => {
   try {
-    const { budget, days, interests, state } = req.body;
+    const { budget, days, interests, state, fromLocation, transport, distance } = req.body;
 
-    // Validate inputs
-    if (!budget || !days || !interests) {
+    if (!budget || !days || !interests)
       return res.status(400).json({ msg: "budget, days, and interests are required" });
-    }
-    if (!state) {
+    if (!state)
       return res.status(400).json({ msg: "Please select an Indian state" });
-    }
-    if (Number(days) < 1 || Number(days) > 30) {
+    if (Number(days) < 1 || Number(days) > 30)
       return res.status(400).json({ msg: "Days must be between 1 and 30" });
-    }
-    if (Number(budget) < 500) {
+    if (Number(budget) < 500)
       return res.status(400).json({ msg: "Minimum budget is ₹500" });
-    }
 
     const interestList = Array.isArray(interests) ? interests : [interests];
+    const from = fromLocation || "Your Location";
+    const km   = Number(distance) || 200;
+    const rate  = TRANSPORT_RATES[transport] || 0;
 
     // ── Try OpenAI if key is configured ──────────────────────────────────────
     const openai = getClient();
     if (openai) {
       try {
-        const prompt = `You are an expert Indian travel planner specializing in ${state}.
-Create a detailed ${days}-day trip itinerary for someone visiting ${state} with a budget of ₹${budget}, interested in: ${interestList.join(", ")}.
+        const transportNote = transport
+          ? `The traveller uses ${transport} (₹${rate}/km). Distance from ${from} to ${state} ≈ ${km} km (one-way).`
+          : `The traveller uses self-arranged transport.`;
 
-STRICT RULE: ALL places MUST be located within ${state} only. Do not suggest places outside ${state}.
+        const prompt = `You are an expert Indian travel planner specializing in ${state}.
+Create a detailed ${days}-day trip itinerary for someone travelling FROM ${from} TO places within ${state}.
+Budget: ₹${budget} | Interests: ${interestList.join(", ")}.
+${transportNote}
+
+STRICT RULES:
+1. ALL places MUST be within ${state} only.
+2. Day 1 should start with arrival/travel from ${from}.
+3. Suggest route order — places should be geographically logical (minimize back-tracking).
+4. Last day should include departure back toward ${from}.
 
 Respond ONLY with valid JSON matching this exact schema:
 {
-  "title": "Short trip title mentioning ${state}",
-  "summary": "One sentence overview mentioning ${state}",
+  "title": "Short title mentioning ${state}",
+  "summary": "One sentence overview mentioning ${from} → ${state}",
   "state": "${state}",
+  "fromLocation": "${from}",
+  "transport": "${transport || ""}",
+  "routeOrder": ["${from}", "Place 1", "Place 2", "...", "${from}"],
+  "placeCost": 5000,
+  "transportCost": ${rate * km * 2},
+  "foodCost": ${Number(days) * 3 * 150},
   "totalEstimatedCost": 12000,
   "places": [
-    { "name": "Place Name", "type": "Beach|Hill|City|Forest|Heritage", "location": "City/Town, ${state}", "description": "2-3 sentences", "estimatedCost": 2000 }
+    { "name": "Place Name", "type": "Beach|Hill|City|Forest|Heritage", "location": "City, ${state}", "description": "2-3 sentences", "estimatedCost": 2000 }
   ],
   "itinerary": [
-    { "day": 1, "title": "Day title", "places": ["Place 1"], "activities": ["Morning: ...", "Afternoon: ...", "Evening: ..."], "meals": ["Breakfast: ...", "Lunch: ...", "Dinner: ..."], "estimatedDayCost": 1500 }
+    { "day": 1, "title": "Travel from ${from} & Arrival", "places": ["Place 1"], "activities": ["Morning: Depart from ${from}", "Afternoon: ...", "Evening: ..."], "meals": ["Breakfast: ...", "Lunch: ...", "Dinner: ..."], "estimatedDayCost": 1500 }
   ],
-  "tips": ["Tip about ${state} 1", "Tip 2", "Tip 3"],
+  "tips": ["State-specific tip 1", "Tip 2", "Tip 3"],
   "bestTimeToVisit": "Month range"
 }
-Rules: Only real places in ${state}. Exactly ${days} days. Total within ₹${budget}. Minimum 2 places.`;
+Rules: Only real places in ${state}. Exactly ${days} days. Total within ₹${budget}.`;
 
         const completion = await openai.chat.completions.create({
           model: "gpt-3.5-turbo",
@@ -319,7 +358,7 @@ Rules: Only real places in ${state}. Exactly ${days} days. Total within ₹${bud
     }
 
     // ── Local generator fallback ──────────────────────────────────────────────
-    const plan = generateLocalPlan(Number(budget), Number(days), interestList, state);
+    const plan = generateLocalPlan(Number(budget), Number(days), interestList, state, from, transport, km);
     res.json({ success: true, plan, source: "local" });
 
   } catch (err) {
