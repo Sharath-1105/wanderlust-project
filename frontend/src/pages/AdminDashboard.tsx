@@ -11,12 +11,15 @@ interface Place {
   _id: string; name: string; image: string; description: string;
   price: number; location: string; type: string; rating: number;
   state: string; district: string; entryFee: number; transportCost: number;
+  latitude?: number | null; longitude?: number | null;
 }
 interface User { _id: string; name: string; email: string; role: string; }
 interface Trip {
   _id: string; userId: { name: string; email: string } | null;
   days: number; persons: number; totalCost: number;
   status: string; startDate: string; places: any[];
+  fromLocation?: string; transport?: string; distance?: number;
+  placeCost?: number; transportCost?: number; foodCost?: number;
 }
 
 // ─── Constants ───────────────────────────────────────────────
@@ -70,7 +73,7 @@ function Overview({ analytics }: { analytics: any }) {
 
 // ─── SECTION: Add Place ───────────────────────────────────────
 function AddPlace({ onSuccess, showToast }: { onSuccess: () => void; showToast: (m: string, t?: "success" | "error") => void }) {
-  const empty = { name: "", image: "", description: "", price: "", location: "", type: "Other", rating: "", state: "", district: "", entryFee: "", transportCost: "" };
+  const empty = { name: "", image: "", description: "", price: "", location: "", type: "Other", rating: "", state: "", district: "", entryFee: "", transportCost: "", latitude: "", longitude: "" };
   const [form, setForm] = useState(empty);
   const [loading, setLoading] = useState(false);
 
@@ -82,10 +85,12 @@ function AddPlace({ onSuccess, showToast }: { onSuccess: () => void; showToast: 
     try {
       await API.post("/admin/place", {
         ...form,
-        price: Number(form.price) || 0,
-        rating: Number(form.rating) || 0,
-        entryFee: Number(form.entryFee) || 0,
+        price:         Number(form.price) || 0,
+        rating:        Number(form.rating) || 0,
+        entryFee:      Number(form.entryFee) || 0,
         transportCost: Number(form.transportCost) || 0,
+        latitude:      form.latitude  !== "" ? Number(form.latitude)  : null,
+        longitude:     form.longitude !== "" ? Number(form.longitude) : null,
       });
       showToast("Place added successfully!");
       setForm(empty);
@@ -139,6 +144,8 @@ function AddPlace({ onSuccess, showToast }: { onSuccess: () => void; showToast: 
           <Field label="Entry Fee (₹)" field="entryFee" type="number" placeholder="50" />
           <Field label="Transport Cost (₹)" field="transportCost" type="number" placeholder="100" />
           <Field label="Rating (0–5)" field="rating" type="number" placeholder="4.2" />
+          <Field label="Latitude (optional)" field="latitude" type="number" placeholder="12.9716" />
+          <Field label="Longitude (optional)" field="longitude" type="number" placeholder="77.5946" />
         </div>
         <button onClick={handleSubmit} disabled={loading}
           className="mt-6 w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 rounded-xl transition disabled:opacity-60">
@@ -315,7 +322,7 @@ function Users({ showToast }: { showToast: (m: string, t?: "success" | "error") 
 }
 
 // ─── SECTION: Trips ───────────────────────────────────────────
-function Trips({ showToast }: { showToast: (m: string, t?: "success" | "error") => void }) {
+function Trips({ showToast: _showToast }: { showToast: (m: string, t?: "success" | "error") => void }) {
   const [trips, setTrips] = useState<Trip[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -373,7 +380,8 @@ function Trips({ showToast }: { showToast: (m: string, t?: "success" | "error") 
                 <th className="px-4 py-3 text-left">Places</th>
                 <th className="px-4 py-3 text-left">Days</th>
                 <th className="px-4 py-3 text-left">Persons</th>
-                <th className="px-4 py-3 text-left">Total Cost</th>
+                <th className="px-4 py-3 text-left">Transport</th>
+                <th className="px-4 py-3 text-left">Cost Breakdown</th>
                 <th className="px-4 py-3 text-left">Start Date</th>
                 <th className="px-4 py-3 text-left">Status</th>
               </tr>
@@ -406,8 +414,32 @@ function Trips({ showToast }: { showToast: (m: string, t?: "success" | "error") 
                     </td>
                     <td className="px-4 py-3">{t.days ?? "—"}</td>
                     <td className="px-4 py-3">{t.persons ?? "—"}</td>
-                    <td className="px-4 py-3 font-semibold">
-                      {t.totalCost != null ? `₹${t.totalCost.toLocaleString()}` : "—"}
+                    <td className="px-4 py-3">
+                      {t.transport ? (
+                        <div className="space-y-0.5">
+                          <span className="text-xs bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full font-semibold">
+                            {t.transport === "Car" ? "🚗" : t.transport === "Bus" ? "🚌" : "🚂"} {t.transport}
+                          </span>
+                          {(t.distance || 0) > 0 && (
+                            <div className="text-xs text-gray-400">{t.distance} km</div>
+                          )}
+                          {t.fromLocation && (
+                            <div className="text-xs text-gray-500">📌 {t.fromLocation}</div>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-gray-400 text-xs">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="space-y-1 text-xs text-gray-600">
+                        {(t.placeCost || 0) > 0 && <div>🎟 Places: <b>₹{t.placeCost?.toLocaleString()}</b></div>}
+                        {(t.transportCost || 0) > 0 && <div>🚌 Transport: <b>₹{t.transportCost?.toLocaleString()}</b></div>}
+                        {(t.foodCost || 0) > 0 && <div>🍽 Food: <b>₹{t.foodCost?.toLocaleString()}</b></div>}
+                        <div className="font-bold text-gray-800 border-t pt-1">
+                          Total: ₹{t.totalCost?.toLocaleString() || 0}
+                        </div>
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-gray-500">
                       {t.startDate ? new Date(t.startDate).toLocaleDateString() : "—"}

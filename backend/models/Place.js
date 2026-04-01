@@ -21,6 +21,10 @@ const placeSchema = new mongoose.Schema({
     enum: ["Beach", "Hill", "City", "Forest", "Heritage", "Other"],
     default: "Other",
   },
+
+  // Map coordinates (optional — used for Google Maps markers)
+  latitude:  { type: Number, default: null },
+  longitude: { type: Number, default: null },
 }, { timestamps: true });
 
 export default mongoose.model("Place", placeSchema);

@@ -13,12 +13,23 @@ const tripSchema = new mongoose.Schema(
       default: [],
     },
 
-    days: { type: Number, required: true },
+    // ── Trip details ────────────────────────────────────────
+    days:    { type: Number, required: true },
     persons: { type: Number, required: true },
-    totalCost: Number,
 
+    fromLocation: { type: String, default: "" },
+    transport:    { type: String, enum: ["Car", "Bus", "Train", ""], default: "" },
+    distance:     { type: Number, default: 0 },   // km (one-way)
+
+    // ── Cost breakdown ────────────────────────────────────────
+    placeCost:     { type: Number, default: 0 },
+    transportCost: { type: Number, default: 0 },
+    foodCost:      { type: Number, default: 0 },
+    totalCost:     { type: Number, default: 0 },
+
+    // ── Dates & status ────────────────────────────────────────
     startDate: Date,
-    endDate: Date,
+    endDate:   Date,
 
     status: {
       type: String,
