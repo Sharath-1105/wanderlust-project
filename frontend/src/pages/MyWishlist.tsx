@@ -1,7 +1,20 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import API from "../services/api";
-import bg from "../assets/travel-bg.jpeg";
+import Navbar from "../components/Navbar";
+
+function SkeletonCard() {
+  return (
+    <div className="card overflow-hidden">
+      <div className="skeleton h-36 w-full" />
+      <div className="p-5 space-y-3">
+        <div className="skeleton h-4 w-3/4 rounded-lg" />
+        <div className="skeleton h-3 w-1/2 rounded-lg" />
+        <div className="skeleton h-8 w-full rounded-xl mt-2" />
+      </div>
+    </div>
+  );
+}
 
 export default function MyWishlist() {
   const navigate = useNavigate();
@@ -14,9 +27,7 @@ export default function MyWishlist() {
     setTimeout(() => setToast(null), 3000);
   };
 
-  useEffect(() => {
-    fetchWishlist();
-  }, []);
+  useEffect(() => { fetchWishlist(); }, []);
 
   const fetchWishlist = async () => {
     try {
@@ -39,119 +50,130 @@ export default function MyWishlist() {
     }
   };
 
+  const TYPE_GRADIENT: Record<string, string> = {
+    Beach:   "from-cyan-100 to-blue-100",
+    Hill:    "from-emerald-100 to-green-100",
+    City:    "from-violet-100 to-purple-100",
+    Heritage:"from-amber-100 to-yellow-100",
+    Forest:  "from-green-100 to-lime-100",
+    Other:   "from-slate-100 to-slate-50",
+  };
+  const TYPE_EMOJI: Record<string, string> = {
+    Beach: "🏖️", Hill: "⛰️", City: "🌆", Heritage: "🏛️", Forest: "🌿", Other: "📍",
+  };
+
   return (
-    <div
-      className="min-h-screen bg-cover bg-center p-6"
-      style={{ backgroundImage: `url(${bg})` }}
-    >
-      {/* Overlay */}
-      <div className="absolute inset-0 bg-black/55"></div>
+    <div className="min-h-screen bg-[#F8FAFC]">
+      <Navbar title="My Wishlist" />
 
       {/* Toast */}
       {toast && (
-        <div
-          className={`fixed top-5 right-5 z-50 px-5 py-3 rounded-xl shadow-lg text-white font-medium ${
-            toast.type === "success" ? "bg-green-600" : "bg-red-500"
-          }`}
-        >
+        <div className={`fixed top-20 right-5 z-50 px-5 py-3 rounded-xl shadow-xl text-white font-medium text-sm animate-fade-in ${
+          toast.type === "success" ? "bg-emerald-500" : "bg-red-500"
+        }`}>
           {toast.msg}
         </div>
       )}
 
-      <div className="relative z-10 max-w-5xl mx-auto">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-24 pb-16">
+
         {/* Header */}
-        <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold text-white flex items-center gap-2">
+        <div className="mb-8 animate-fade-in">
+          <h1 className="text-3xl font-extrabold text-slate-800 mb-1 flex items-center gap-2">
             ❤️ My Wishlist
           </h1>
-          <div className="flex gap-3">
-            <button
-              onClick={() => navigate("/dashboard")}
-              className="text-white border border-white px-4 py-2 rounded hover:bg-white/20 transition"
-            >
-              ← Back
-            </button>
-            <button
-              onClick={() => { localStorage.clear(); navigate("/"); }}
-              className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded transition"
-            >
-              Logout
-            </button>
-          </div>
+          <p className="text-slate-500 text-sm">Places you've saved — ready to book whenever you are</p>
         </div>
 
-        {/* Loading */}
+        {/* Skeleton */}
         {loading && (
-          <p className="text-white text-center">Loading wishlist...</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+            {[1,2,3].map((i) => <SkeletonCard key={i} />)}
+          </div>
         )}
 
         {/* Empty */}
         {!loading && wishlist.length === 0 && (
-          <div className="text-center bg-white/10 rounded-2xl p-12">
-            <p className="text-white text-5xl mb-4">🤍</p>
-            <p className="text-white text-xl font-semibold mb-2">
-              Your wishlist is empty
+          <div className="card p-16 text-center animate-fade-in">
+            <div className="text-6xl mb-4 animate-pulse">🤍</div>
+            <h3 className="text-xl font-bold text-slate-700 mb-2">Your wishlist is empty</h3>
+            <p className="text-slate-500 text-sm mb-8">
+              Tap the ❤️ on any place while exploring to save it here.
             </p>
-            <p className="text-white/70 mb-6">
-              Tap the heart ❤️ on any place while booking to save it here.
-            </p>
-            <button
-              onClick={() => navigate("/book-trip")}
-              className="bg-green-500 hover:bg-green-600 text-white px-6 py-2 rounded-xl transition"
-            >
-              Browse Places
-            </button>
+            <div className="flex gap-3 justify-center flex-wrap">
+              <button onClick={() => navigate("/explore")} className="btn-primary px-8">
+                🗺️ Explore Places
+              </button>
+              <button onClick={() => navigate("/book-trip")} className="btn-secondary px-8">
+                📋 Browse & Book
+              </button>
+            </div>
           </div>
         )}
 
         {/* Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-          {wishlist.map((place) => (
-            <div
-              key={place._id}
-              className="bg-white/90 backdrop-blur rounded-2xl shadow-lg p-5 flex flex-col gap-2"
-            >
-              {/* Place header */}
-              <div className="flex justify-between items-start">
-                <h2 className="text-lg font-bold text-gray-800">{place.name}</h2>
-                <button
-                  onClick={() => handleRemove(place._id)}
-                  title="Remove from wishlist"
-                  className="text-red-500 hover:text-red-700 text-xl transition"
-                >
-                  ❤️
-                </button>
-              </div>
-
-              {/* Location */}
-              {place.district && (
-                <p className="text-sm text-gray-500">
-                  📍 {place.district}, {place.state}
-                </p>
-              )}
-
-              {/* Fee info */}
-              <div className="mt-2 space-y-1 text-sm text-gray-700">
-                <div className="flex justify-between bg-gray-100 rounded px-3 py-1">
-                  <span>Entry Fee</span>
-                  <span className="font-semibold">₹{place.entryFee}</span>
-                </div>
-                <div className="flex justify-between bg-gray-100 rounded px-3 py-1">
-                  <span>Transport</span>
-                  <span className="font-semibold">₹{place.transportCost}</span>
-                </div>
-              </div>
-
-              {/* Book now CTA */}
-              <button
-                onClick={() => navigate("/book-trip")}
-                className="mt-3 bg-green-600 hover:bg-green-700 text-white text-sm py-2 rounded-xl transition"
+        {!loading && wishlist.length > 0 && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+            {wishlist.map((place, i) => (
+              <div
+                key={place._id}
+                className="card overflow-hidden group animate-fade-in"
+                style={{ animationDelay: `${i * 50}ms` }}
               >
-                Book This Place
-              </button>
-            </div>
-          ))}
-        </div>
+                {/* Image / gradient */}
+                <div className={`h-36 flex items-center justify-center text-5xl bg-gradient-to-br ${
+                  TYPE_GRADIENT[place.type] || TYPE_GRADIENT.Other
+                } relative group-hover:brightness-95 transition-all`}>
+                  {place.image ? (
+                    <img
+                      src={place.image}
+                      alt={place.name}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                    />
+                  ) : (
+                    <span>{TYPE_EMOJI[place.type] || "📍"}</span>
+                  )}
+                  {/* Remove heart */}
+                  <button
+                    onClick={() => handleRemove(place._id)}
+                    title="Remove from wishlist"
+                    className="absolute top-3 right-3 w-8 h-8 bg-white/90 backdrop-blur rounded-full flex items-center justify-center shadow hover:scale-110 transition-transform"
+                  >
+                    ❤️
+                  </button>
+                </div>
+
+                <div className="p-5">
+                  <h2 className="font-bold text-slate-800 text-base mb-1 line-clamp-1">{place.name}</h2>
+                  {place.district && (
+                    <p className="text-sm text-slate-500 mb-3">
+                      📍 {place.district}, {place.state}
+                    </p>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-2 text-xs mb-4">
+                    <div className="bg-slate-50 rounded-xl px-3 py-2">
+                      <span className="text-slate-400 block">Entry Fee</span>
+                      <span className="font-bold text-slate-700">₹{place.entryFee || "—"}</span>
+                    </div>
+                    <div className="bg-slate-50 rounded-xl px-3 py-2">
+                      <span className="text-slate-400 block">Transport</span>
+                      <span className="font-bold text-slate-700">₹{place.transportCost || "—"}</span>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => navigate("/book-trip")}
+                    className="w-full btn-primary py-2.5 text-sm"
+                  >
+                    Book This Place
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
