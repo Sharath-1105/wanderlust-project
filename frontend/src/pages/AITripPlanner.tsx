@@ -1,7 +1,9 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import API from "../services/api";
+import { fetchRouteDistance, type DistanceLeg } from "../services/distanceApi";
 import Navbar from "../components/Navbar";
+import LocationSelector from "../components/LocationSelector";
 
 // ─── Types ────────────────────────────────────────────────────
 interface PlaceSuggestion {
@@ -41,66 +43,73 @@ interface TripPlan {
 
 // ─── Indian States ─────────────────────────────────────────────
 const INDIAN_STATES = [
-  { value: "Karnataka", flag: "🌿" },
-  { value: "Kerala", flag: "🌴" },
-  { value: "Goa", flag: "🏖️" },
-  { value: "Tamil Nadu", flag: "🏛️" },
-  { value: "Maharashtra", flag: "🌆" },
-  { value: "Rajasthan", flag: "🏰" },
-  { value: "Himachal Pradesh", flag: "⛰️" },
-  { value: "Uttarakhand", flag: "🗻" },
-  { value: "Andhra Pradesh", flag: "🌊" },
-  { value: "West Bengal", flag: "🌸" },
-  { value: "Gujarat", flag: "🦁" },
-  { value: "Madhya Pradesh", flag: "🐯" },
-  { value: "Punjab", flag: "🌾" },
-  { value: "Bihar", flag: "🕌" },
-  { value: "Odisha", flag: "🕍" },
-  { value: "Assam", flag: "🦏" },
-  { value: "Meghalaya", flag: "🌧️" },
-  { value: "Sikkim", flag: "🏔️" },
-  { value: "Jammu & Kashmir", flag: "❄️" },
-  { value: "Ladakh", flag: "🦅" },
-  { value: "Telangana", flag: "🌾" },
-  { value: "Jharkhand", flag: "🌳" },
-  { value: "Chhattisgarh", flag: "🦋" },
-  { value: "Manipur", flag: "🌺" },
-  { value: "Nagaland", flag: "🎭" },
+  { value: "Karnataka",         flag: "🌿" },
+  { value: "Kerala",            flag: "🌴" },
+  { value: "Goa",               flag: "🏖️" },
+  { value: "Tamil Nadu",        flag: "🏛️" },
+  { value: "Maharashtra",       flag: "🌆" },
+  { value: "Rajasthan",         flag: "🏰" },
+  { value: "Himachal Pradesh",  flag: "⛰️" },
+  { value: "Uttarakhand",       flag: "🗻" },
+  { value: "Andhra Pradesh",    flag: "🌊" },
+  { value: "West Bengal",       flag: "🌸" },
+  { value: "Gujarat",           flag: "🦁" },
+  { value: "Madhya Pradesh",    flag: "🐯" },
+  { value: "Punjab",            flag: "🌾" },
+  { value: "Bihar",             flag: "🕌" },
+  { value: "Odisha",            flag: "🕍" },
+  { value: "Assam",             flag: "🦏" },
+  { value: "Meghalaya",         flag: "🌧️" },
+  { value: "Sikkim",            flag: "🏔️" },
+  { value: "Jammu & Kashmir",   flag: "❄️" },
+  { value: "Ladakh",            flag: "🦅" },
+  { value: "Telangana",         flag: "🌾" },
+  { value: "Jharkhand",         flag: "🌳" },
+  { value: "Chhattisgarh",      flag: "🦋" },
+  { value: "Manipur",           flag: "🌺" },
+  { value: "Nagaland",          flag: "🎭" },
 ];
 
 const INTEREST_OPTIONS = [
-  { value: "Beach", label: "🏖️ Beach" },
-  { value: "Mountains", label: "⛰️ Mountains" },
-  { value: "Heritage", label: "🏛️ Heritage" },
-  { value: "Wildlife", label: "🦁 Wildlife" },
-  { value: "Adventure", label: "🧗 Adventure" },
-  { value: "Food", label: "🍜 Food" },
-  { value: "Spirituality", label: "🕌 Spirituality" },
-  { value: "City", label: "🌆 City" },
-  { value: "Photography", label: "📸 Photography" },
-  { value: "Backpacking", label: "🎒 Backpacking" },
+  { value: "Beach",         label: "🏖️ Beach"        },
+  { value: "Mountains",     label: "⛰️ Mountains"    },
+  { value: "Heritage",      label: "🏛️ Heritage"     },
+  { value: "Wildlife",      label: "🦁 Wildlife"     },
+  { value: "Adventure",     label: "🧗 Adventure"    },
+  { value: "Food",          label: "🍜 Food"         },
+  { value: "Spirituality",  label: "🕌 Spirituality" },
+  { value: "City",          label: "🌆 City"         },
+  { value: "Photography",   label: "📸 Photography"  },
+  { value: "Backpacking",   label: "🎒 Backpacking"  },
 ];
+
+const TRANSPORT_RATES: Record<string, number> = { Car: 10, Bus: 5, Train: 7 };
+
+// ─── Inline Spinner ────────────────────────────────────────────
+function Spinner({ size = 16 }: { size?: number }) {
+  return (
+    <svg style={{ width: size, height: size }} className="animate-spin" viewBox="0 0 24 24" fill="none">
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+    </svg>
+  );
+}
 
 // ─── Timeline Day Card ────────────────────────────────────────
 function TimelineDayCard({ day, isLast }: { day: ItineraryDay; isLast: boolean }) {
   const [open, setOpen] = useState(true);
   return (
     <div className="flex gap-4">
-      {/* Left: dot + line */}
       <div className="flex flex-col items-center">
         <div className="w-10 h-10 rounded-full bg-gradient-to-br from-brand-500 to-brand-700 text-white flex items-center justify-center font-bold text-sm flex-shrink-0 shadow-md">
           D{day.day}
         </div>
         {!isLast && <div className="w-0.5 bg-gradient-to-b from-brand-300 to-transparent flex-1 mt-1 min-h-[24px]" />}
       </div>
-
-      {/* Right: card */}
       <div className="flex-1 mb-5">
         <div className="card overflow-hidden">
-          <button
-            onClick={() => setOpen((o) => !o)}
-            className="w-full flex items-center justify-between px-5 py-4 hover:bg-slate-50 transition text-left"
-          >
+          <button onClick={() => setOpen((o) => !o)}
+            className="w-full flex items-center justify-between px-5 py-4 hover:bg-slate-50 transition text-left">
             <div className="flex-1 min-w-0">
               <p className="font-bold text-slate-800">{day.title}</p>
               <p className="text-xs text-slate-400 mt-0.5 truncate">{(day.places || []).join(" → ")}</p>
@@ -145,12 +154,12 @@ function TimelineDayCard({ day, isLast }: { day: ItineraryDay; isLast: boolean }
 // ─── Place Card ────────────────────────────────────────────────
 function PlaceCard({ place }: { place: PlaceSuggestion }) {
   const typeColors: Record<string, { bg: string; text: string }> = {
-    Beach:   { bg: "bg-cyan-50",    text: "text-cyan-700"   },
+    Beach:   { bg: "bg-cyan-50",    text: "text-cyan-700"    },
     Hill:    { bg: "bg-emerald-50", text: "text-emerald-700" },
-    City:    { bg: "bg-violet-50",  text: "text-violet-700" },
-    Forest:  { bg: "bg-green-50",   text: "text-green-700"  },
-    Heritage:{ bg: "bg-amber-50",   text: "text-amber-700"  },
-    Other:   { bg: "bg-slate-50",   text: "text-slate-600"  },
+    City:    { bg: "bg-violet-50",  text: "text-violet-700"  },
+    Forest:  { bg: "bg-green-50",   text: "text-green-700"   },
+    Heritage:{ bg: "bg-amber-50",   text: "text-amber-700"   },
+    Other:   { bg: "bg-slate-50",   text: "text-slate-600"   },
   };
   const c = typeColors[place.type] || typeColors.Other;
   return (
@@ -179,23 +188,33 @@ export default function AITripPlanner() {
     if (!localStorage.getItem("token")) navigate("/");
   }, [navigate]);
 
-  const [budget, setBudget] = useState("");
-  const [days, setDays] = useState("");
+  // ── Form inputs ────────────────────────────────────────────────
+  const [budget, setBudget]               = useState("");
+  const [days, setDays]                   = useState("");
   const [selectedState, setSelectedState] = useState("");
-  const [fromLocation, setFromLocation] = useState("");
-  const [transport, setTransport] = useState("");
-  const [distance, setDistance] = useState("");
+  const [fromLocation, setFromLocation]   = useState("");
+  const [transport, setTransport]         = useState("");
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [plan, setPlan] = useState<TripPlan | null>(null);
-  const [error, setError] = useState("");
-  const [activeTab, setActiveTab] = useState<"itinerary" | "places" | "tips" | "cost">("itinerary");
 
+  // ── Plan state ─────────────────────────────────────────────────
+  const [loading, setLoading]             = useState(false);
+  const [plan, setPlan]                   = useState<TripPlan | null>(null);
+  const [error, setError]                 = useState("");
+  const [activeTab, setActiveTab]         = useState<"itinerary" | "places" | "tips" | "cost">("itinerary");
+
+  // ── Booking modal ──────────────────────────────────────────────
   const [showBookModal, setShowBookModal] = useState(false);
-  const [bookDate, setBookDate] = useState("");
-  const [bookPersons, setBookPersons] = useState("1");
-  const [booking, setBooking] = useState(false);
+  const [bookDate, setBookDate]           = useState("");
+  const [bookPersons, setBookPersons]     = useState("1");
+  const [booking, setBooking]             = useState(false);
 
+  // ── Real-distance state (computed at booking time only) ────────
+  const [bookingDistanceKm, setBookingDistanceKm]     = useState<number | null>(null);
+  const [bookingLegs, setBookingLegs]                 = useState<DistanceLeg[]>([]);
+  const [computingDistance, setComputingDistance]     = useState(false);
+  const [distanceComputedFor, setDistanceComputedFor] = useState<string>(""); // key to avoid re-compute
+
+  // ── Toast ──────────────────────────────────────────────────────
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const showToast = (msg: string, type: "success" | "error" = "success") => {
     setToast({ msg, type });
@@ -206,6 +225,8 @@ export default function AITripPlanner() {
   const toggleInterest = (val: string) =>
     setSelectedInterests((prev) => prev.includes(val) ? prev.filter((i) => i !== val) : [...prev, val]);
 
+  // ── Generate plan (uses estimated/AI-provided distance) ─────────
+  // ⚠️ NO real distance calculation here — AI returns estimated cost only.
   const handleGenerate = async () => {
     setError("");
     if (!budget || !days) return setError("Please enter your budget and number of days.");
@@ -213,20 +234,21 @@ export default function AITripPlanner() {
     if (Number(budget) < 500) return setError("Minimum budget is ₹500.");
     if (Number(days) < 1 || Number(days) > 30) return setError("Days must be between 1 and 30.");
     if (selectedInterests.length === 0) return setError("Select at least one interest.");
-    if (transport && (!distance || Number(distance) < 1))
-      return setError("Enter estimated distance from your location for transport cost.");
 
     setLoading(true);
     setPlan(null);
+    setBookingDistanceKm(null);
+    setDistanceComputedFor("");
+
     try {
       const res = await API.post("/ai-trip", {
-        budget: Number(budget),
-        days: Number(days),
-        interests: selectedInterests,
-        state: selectedState,
+        budget:       Number(budget),
+        days:         Number(days),
+        interests:    selectedInterests,
+        state:        selectedState,
         fromLocation: fromLocation || undefined,
-        transport: transport || undefined,
-        distance: Number(distance) || undefined,
+        transport:    transport    || undefined,
+        // ⚠️ distance NOT sent — backend uses estimate for AI planning
       });
       setPlan(res.data.plan);
       setActiveTab("itinerary");
@@ -237,42 +259,72 @@ export default function AITripPlanner() {
     }
   };
 
+  // ── Open booking modal and compute real distance ────────────────
+  const openBookModal = async () => {
+    setShowBookModal(true);
+
+    if (!fromLocation.trim() || !transport || !plan?.places?.length) {
+      // Can't compute — skip; backend will handle with fallback
+      return;
+    }
+
+    // Build a stable cache key so we don't re-compute if nothing changed
+    const placeNames   = plan.places.map((p) => p.name);
+    const cacheKey     = `${fromLocation}|${transport}|${placeNames.join(",")}`;
+    if (distanceComputedFor === cacheKey && bookingDistanceKm !== null) return; // already computed
+
+    setComputingDistance(true);
+    try {
+      const result = await fetchRouteDistance(fromLocation.trim(), placeNames);
+      setBookingDistanceKm(result.totalDistanceKm);
+      setBookingLegs(result.legs || []);
+      setDistanceComputedFor(cacheKey);
+    } catch (err: any) {
+      console.warn("Distance pre-fetch failed:", err?.message);
+      // Non-fatal — backend will fallback at booking
+    } finally {
+      setComputingDistance(false);
+    }
+  };
+
+  // ── Handle actual booking ──────────────────────────────────────
   const handleBookTrip = async () => {
     if (!bookDate) return showToast("Please select a start date", "error");
     if (!bookPersons || Number(bookPersons) < 1) return showToast("Enter at least 1 person", "error");
     if (!plan || !plan.places || plan.places.length === 0) return showToast("No places to book", "error");
 
-    const numDays = Number(days);
+    const numDays    = Number(days);
     const numPersons = Number(bookPersons);
     if (!numDays || numDays < 1) return showToast("Invalid trip days", "error");
 
     const rawPlaces: PlaceSuggestion[] = JSON.parse(JSON.stringify(plan.places));
     const placesToBook = rawPlaces.slice(0, numDays * 3).map((p) => ({
-      name: (p.name || "Unknown Place").toString().substring(0, 100),
-      state: (plan.state || selectedState || "").toString(),
-      district: (p.location || "").toString().substring(0, 100),
-      location: (p.location || "").toString().substring(0, 100),
-      type: (p.type || "Other").toString(),
-      image: "",
-      description: (p.description || "").toString().substring(0, 500),
-      entryFee: isNaN(Number(p.estimatedCost)) ? 0 : Number(p.estimatedCost),
+      name:          (p.name || "Unknown Place").toString().substring(0, 100),
+      state:         (plan.state || selectedState || "").toString(),
+      district:      (p.location || "").toString().substring(0, 100),
+      location:      (p.location || "").toString().substring(0, 100),
+      type:          (p.type || "Other").toString(),
+      image:         "",
+      description:   (p.description || "").toString().substring(0, 500),
+      entryFee:      isNaN(Number(p.estimatedCost)) ? 0 : Number(p.estimatedCost),
       transportCost: 0,
-      price: isNaN(Number(p.estimatedCost)) ? 0 : Number(p.estimatedCost),
-      rating: 0,
+      price:         isNaN(Number(p.estimatedCost)) ? 0 : Number(p.estimatedCost),
+      rating:        0,
     }));
 
     if (placesToBook.length === 0) return showToast("No valid places to book", "error");
 
     setBooking(true);
     try {
+      // Backend ALWAYS recomputes distance + cost — we pass metadata only
       await API.post("/trips", {
-        places: JSON.parse(JSON.stringify(placesToBook)),
-        days: numDays,
-        persons: numPersons,
-        startDate: bookDate,
-        fromLocation: plan.fromLocation || fromLocation || "",
-        transport: plan.transport || transport || "",
-        distance: plan.distance || Number(distance) || 0,
+        places:       JSON.parse(JSON.stringify(placesToBook)),
+        days:         numDays,
+        persons:      numPersons,
+        startDate:    bookDate,
+        fromLocation: fromLocation || plan.fromLocation || "",
+        transport:    transport    || plan.transport    || "",
+        // ⚠️ distance intentionally omitted — backend is source of truth
       });
       setShowBookModal(false);
       showToast("Trip booked successfully! 🎉");
@@ -293,6 +345,10 @@ export default function AITripPlanner() {
     { id: "tips",      label: "Tips",      icon: "💡" },
   ];
 
+  // ── Estimated transport cost helper (for cost tab display) ───
+  const estimatedTransportCost = plan?.transportCost
+    ?? (plan?.distance && transport ? (TRANSPORT_RATES[transport] || 0) * plan.distance : null);
+
   return (
     <div className="min-h-screen bg-[#F8FAFC]">
       <Navbar title="AI Trip Planner" />
@@ -306,7 +362,7 @@ export default function AITripPlanner() {
         </div>
       )}
 
-      {/* Booking Modal */}
+      {/* ── Booking Modal ──────────────────────────────────────────── */}
       {showBookModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowBookModal(false)} />
@@ -318,6 +374,41 @@ export default function AITripPlanner() {
               </div>
               <button onClick={() => setShowBookModal(false)} className="text-slate-400 hover:text-slate-600 text-2xl leading-none">×</button>
             </div>
+
+            {/* ── Real distance preview ──────────────────────────────── */}
+            {fromLocation && transport && (
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 mb-4">
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">
+                  🛣️ Real Route Distance
+                </p>
+                {computingDistance ? (
+                  <div className="flex items-center gap-2 text-slate-500 text-sm">
+                    <Spinner size={13} />
+                    <span>Calculating real-world route…</span>
+                  </div>
+                ) : bookingDistanceKm !== null ? (
+                  <div>
+                    <p className="text-lg font-extrabold text-brand-600">{bookingDistanceKm.toLocaleString()} km</p>
+                    {bookingLegs.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-1 mt-1">
+                        {bookingLegs.map((leg, i) => (
+                          <span key={i} className="flex items-center gap-0.5 text-xs text-slate-500">
+                            <span className="bg-brand-50 text-brand-700 px-1.5 py-0.5 rounded font-medium">{leg.from}</span>
+                            <span className="text-slate-300">→</span>
+                            {i === bookingLegs.length - 1 && (
+                              <span className="bg-brand-50 text-brand-700 px-1.5 py-0.5 rounded font-medium">{leg.to}</span>
+                            )}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    <p className="text-xs text-slate-400 mt-1">Via OpenStreetMap · Cost computed server-side at booking</p>
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-400">Cost will be calculated server-side at booking</p>
+                )}
+              </div>
+            )}
 
             <div className="bg-brand-50 rounded-xl p-3 mb-4">
               <p className="text-xs font-semibold text-brand-600 mb-2 uppercase tracking-wide">📍 Places</p>
@@ -344,10 +435,10 @@ export default function AITripPlanner() {
                 onChange={(e) => setBookPersons(e.target.value)} className="input-field" />
             </div>
 
-            <div className="grid grid-cols-3 gap-2 mb-5">
+            <div className="grid grid-cols-3 gap-2 mb-4">
               {[
-                { label: "Days", value: days },
-                { label: "Places", value: Math.min((plan?.places || []).length, Number(days) * 3) },
+                { label: "Days",    value: days },
+                { label: "Places",  value: Math.min((plan?.places || []).length, Number(days) * 3) },
                 { label: "Est. Cost", value: `₹${plan?.totalEstimatedCost?.toLocaleString()}` },
               ].map((s) => (
                 <div key={s.label} className="bg-slate-50 rounded-xl p-3 text-center">
@@ -357,13 +448,23 @@ export default function AITripPlanner() {
               ))}
             </div>
 
+            <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 mb-4 text-xs text-amber-700 flex items-start gap-2">
+              <span>ℹ️</span>
+              <span>Final cost is calculated server-side using real road distance at booking time.</span>
+            </div>
+
             <button
               id="confirm-book-btn"
               onClick={handleBookTrip}
-              disabled={booking}
+              disabled={booking || computingDistance}
               className="w-full bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white font-bold py-3.5 rounded-xl transition-all disabled:opacity-60 flex items-center justify-center gap-2"
             >
-              {booking ? <><svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>Booking...</> : <>✅ Confirm & Book Trip</>}
+              {booking
+                ? <><Spinner />Booking…</>
+                : computingDistance
+                ? <><Spinner />Computing route…</>
+                : <>✅ Confirm & Book Trip</>
+              }
             </button>
           </div>
         </div>
@@ -409,31 +510,30 @@ export default function AITripPlanner() {
               </div>
 
               {/* From + Transport */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
-                <div>
-                  <label className="label-text">📌 From Location <span className="text-slate-300 font-normal normal-case">(optional)</span></label>
-                  <input type="text" placeholder="e.g. Bangalore..." value={fromLocation}
-                    onChange={(e) => setFromLocation(e.target.value)} className="input-field" />
-                </div>
-                <div>
-                  <label className="label-text">Transport Mode</label>
-                  <select value={transport} onChange={(e) => setTransport(e.target.value)} className="input-field">
-                    <option value="">🚶 No vehicle</option>
-                    <option value="Bus">🚌 Bus — ₹5/km</option>
-                    <option value="Train">🚂 Train — ₹7/km</option>
-                    <option value="Car">🚗 Car — ₹10/km</option>
-                  </select>
-                </div>
+              <div className="mb-5">
+                <LocationSelector
+                  value={fromLocation}
+                  onChange={setFromLocation}
+                  defaultState={selectedState}
+                />
+              </div>
+              <div className="mb-5">
+                <label className="label-text">Transport Mode</label>
+                <select value={transport} onChange={(e) => setTransport(e.target.value)} className="input-field">
+                  <option value="">🚶 No vehicle</option>
+                  <option value="Bus">🚌 Bus — ₹5/km</option>
+                  <option value="Train">🚂 Train — ₹7/km</option>
+                  <option value="Car">🚗 Car — ₹10/km</option>
+                </select>
               </div>
 
-              {/* Distance */}
-              {transport && (
-                <div className="mb-5 animate-fade-in">
-                  <label className="label-text">Distance (km, one-way) *</label>
-                  <div className="flex items-center gap-2">
-                    <input type="number" min="0" placeholder="e.g. 250" value={distance}
-                      onChange={(e) => setDistance(e.target.value)} className="input-field" />
-                    <span className="text-sm text-slate-400 whitespace-nowrap">km × 2</span>
+              {/* Info: distance calculated at booking */}
+              {transport && fromLocation && (
+                <div className="mb-5 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 flex items-start gap-2 animate-fade-in">
+                  <span>ℹ️</span>
+                  <div className="text-xs text-blue-700">
+                    <b>Real-world distance</b> is computed automatically when you click <b>Book Trip</b>.
+                    The AI plan shows an estimated cost based on your inputs.
                   </div>
                 </div>
               )}
@@ -487,10 +587,10 @@ export default function AITripPlanner() {
                 {loading ? (
                   <span className="flex items-center justify-center gap-2">
                     <svg className="animate-spin w-5 h-5" viewBox="0 0 24 24" fill="none">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
                     </svg>
-                    Crafting your {selectedState || "India"} itinerary...
+                    Crafting your {selectedState || "India"} itinerary…
                   </span>
                 ) : `✨ Generate ${selectedState ? `${selectedState} ` : ""}Trip Plan`}
               </button>
@@ -499,7 +599,7 @@ export default function AITripPlanner() {
             {/* Skeleton loading */}
             {loading && (
               <div className="mt-6 space-y-3 animate-fade-in">
-                {[1,2,3].map((i) => (
+                {[1, 2, 3].map((i) => (
                   <div key={i} className="flex gap-4">
                     <div className="skeleton w-10 h-10 rounded-full flex-shrink-0" />
                     <div className="flex-1 space-y-2">
@@ -509,7 +609,7 @@ export default function AITripPlanner() {
                   </div>
                 ))}
                 <p className="text-slate-400 text-center text-sm animate-pulse mt-4">
-                  🤖 AI is crafting your {selectedState} itinerary...
+                  🤖 AI is crafting your {selectedState} itinerary…
                 </p>
               </div>
             )}
@@ -529,10 +629,10 @@ export default function AITripPlanner() {
                 <p className="text-white/75 text-sm mb-4">{plan.summary}</p>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   {[
-                    { label: "State", value: plan.state || "India" },
+                    { label: "State",     value: plan.state || "India" },
                     { label: "Est. Cost", value: `₹${plan.totalEstimatedCost?.toLocaleString()}` },
-                    { label: "Duration", value: `${days} Day${Number(days) > 1 ? "s" : ""}` },
-                    { label: "Places", value: String(plan.places?.length || 0) },
+                    { label: "Duration",  value: `${days} Day${Number(days) > 1 ? "s" : ""}` },
+                    { label: "Places",    value: String(plan.places?.length || 0) },
                   ].map((stat) => (
                     <div key={stat.label} className="bg-white/15 rounded-xl p-3 text-center">
                       <p className="text-xs text-white/60 mb-0.5">{stat.label}</p>
@@ -556,13 +656,12 @@ export default function AITripPlanner() {
                 ))}
               </div>
 
-              {/* Itinerary tab — vertical timeline */}
+              {/* Itinerary tab */}
               {activeTab === "itinerary" && (
                 <div className="animate-fade-in">
-                  {/* Route strip */}
                   {plan.routeOrder && plan.routeOrder.length > 0 && (
                     <div className="card p-4 mb-4">
-                      <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">🛣️ Travel Route</p>
+                      <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">🛣️ Suggested Route</p>
                       <div className="flex flex-wrap items-center gap-1">
                         {plan.routeOrder.map((stop, i) => (
                           <span key={i} className="flex items-center gap-1">
@@ -591,39 +690,56 @@ export default function AITripPlanner() {
                 </div>
               )}
 
-              {/* Cost tab */}
+              {/* Cost tab — shows AI estimated cost with clear "estimated" label */}
               {activeTab === "cost" && (
                 <div className="card p-6 space-y-4 animate-fade-in">
                   <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
                     <span className="w-8 h-8 rounded-xl bg-green-100 flex items-center justify-center">💰</span>
                     Cost Breakdown
+                    <span className="ml-auto text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-semibold">
+                      Estimated
+                    </span>
                   </h3>
+
                   <div className="space-y-3">
                     {[
-                      { icon: "🎟", label: "Places (entry fees)", value: plan.placeCost },
                       {
-                        icon: plan.transport === "Car" ? "🚗" : plan.transport === "Bus" ? "🚌" : "🚂",
-                        label: `Transport (${plan.transport || "self-arranged"})${plan.distance ? ` · ${plan.distance} km × 2` : ""}`,
-                        value: plan.transportCost,
+                        icon:  "🎟",
+                        label: "Places (entry fees)",
+                        value: plan.placeCost,
                       },
-                      { icon: "🍽", label: `Food (${days} days × 3 meals × ₹150)`, value: plan.foodCost },
+                      {
+                        icon:  plan.transport === "Car" ? "🚗" : plan.transport === "Bus" ? "🚌" : "🚂",
+                        label: `Transport (${plan.transport || "self-arranged"}) · estimated`,
+                        value: estimatedTransportCost,
+                      },
+                      {
+                        icon:  "🍽",
+                        label: `Food (${days} days × 3 meals × ₹150)`,
+                        value: plan.foodCost,
+                      },
                     ].map((row) => row.value != null && (
                       <div key={row.label} className="flex justify-between items-center py-2.5 border-b border-slate-100">
                         <span className="text-sm text-slate-600">{row.icon} {row.label}</span>
                         <span className="font-semibold text-slate-800 tabular-nums">₹{(row.value).toLocaleString()}</span>
                       </div>
                     ))}
+
                     {/* Total */}
                     <div className="flex justify-between items-center bg-gradient-to-r from-brand-500 to-brand-700 rounded-xl px-4 py-3">
-                      <span className="font-extrabold text-white">💳 Total (per person)</span>
-                      <span className="font-extrabold text-white text-xl tabular-nums">₹{plan.totalEstimatedCost?.toLocaleString()}</span>
+                      <span className="font-extrabold text-white">💳 Total (per person, est.)</span>
+                      <span className="font-extrabold text-white text-xl tabular-nums">
+                        ₹{plan.totalEstimatedCost?.toLocaleString()}
+                      </span>
                     </div>
                   </div>
-                  <div className="bg-brand-50 rounded-xl p-4 text-xs text-brand-700 space-y-1">
-                    <p className="font-semibold mb-1">Formula used:</p>
-                    <p>🚗 Car → ₹10/km  🚌 Bus → ₹5/km  🚂 Train → ₹7/km</p>
-                    <p>🍽 Food → ₹150/meal × 3 meals/day × days</p>
-                    <p>🔄 Distance includes return journey (×2)</p>
+
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-xs text-amber-700 space-y-1">
+                    <p className="font-semibold mb-1">⚠️ Estimated Cost Note:</p>
+                    <p>This is AI-generated estimate. Final cost is calculated with real road distance when you book.</p>
+                    <p className="mt-1 pt-1 border-t border-amber-200">
+                      🚗 Car ₹10/km · 🚌 Bus ₹5/km · 🚂 Train ₹7/km · 🍽 ₹150/meal
+                    </p>
                   </div>
                 </div>
               )}
@@ -671,17 +787,13 @@ export default function AITripPlanner() {
               {/* Book Trip CTA */}
               <button
                 id="book-trip-btn"
-                onClick={() => setShowBookModal(true)}
+                onClick={openBookModal}
                 className="w-full bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white font-bold py-4 rounded-2xl transition-all shadow-lg hover:shadow-xl hover:scale-[1.01] flex items-center justify-center gap-2 text-base"
               >
-                🗓️ Book This Trip
+                🗓️ Book This Trip — Real Cost Calculated at Booking
               </button>
 
-              <button
-                onClick={handleGenerate}
-                disabled={loading}
-                className="w-full btn-secondary py-3 text-sm"
-              >
+              <button onClick={handleGenerate} disabled={loading} className="w-full btn-secondary py-3 text-sm">
                 🔄 Generate a New Plan
               </button>
             </div>

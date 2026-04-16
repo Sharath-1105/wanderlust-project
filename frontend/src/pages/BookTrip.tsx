@@ -1,7 +1,9 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import API from "../services/api";
+import { fetchRouteDistance, type DistanceLeg } from "../services/distanceApi";
 import { useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
+import LocationSelector from "../components/LocationSelector";
 
 // ─── Shared cost constants (mirrors backend costUtils.js) ────
 const TRANSPORT_RATES: Record<string, number> = { Car: 10, Bus: 5, Train: 7 };
@@ -9,20 +11,20 @@ const FOOD_RATE = 150;
 const MEALS_PER_DAY = 3;
 
 function calcCosts(places: any[], days: number, persons: number, transport: string, distance: number) {
-  const d = Math.max(1, days);
-  const p = Math.max(1, persons);
+  const d  = Math.max(1, days);
+  const p  = Math.max(1, persons);
   const km = Math.max(0, distance);
-  const placeCost = places.reduce((s, pl) => s + (Number(pl.entryFee) || 0), 0) * p;
-  const transportCost = (TRANSPORT_RATES[transport] || 0) * km * p * 2;
-  const foodCost = MEALS_PER_DAY * FOOD_RATE * d * p;
+  const placeCost     = places.reduce((s, pl) => s + (Number(pl.entryFee) || 0), 0) * p;
+  const transportCost = (TRANSPORT_RATES[transport] || 0) * km * p;   // one-way (no ×2 — full route already includes return segments)
+  const foodCost      = MEALS_PER_DAY * FOOD_RATE * d * p;
   return { placeCost, transportCost, foodCost, totalCost: placeCost + transportCost + foodCost };
 }
 
 const TRANSPORT_OPTIONS = [
-  { value: "", label: "None", icon: "🚶", rate: null },
-  { value: "Bus", label: "Bus", icon: "🚌", rate: 5 },
-  { value: "Train", label: "Train", icon: "🚂", rate: 7 },
-  { value: "Car", label: "Car", icon: "🚗", rate: 10 },
+  { value: "",      label: "None",  icon: "🚶", rate: null },
+  { value: "Bus",   label: "Bus",   icon: "🚌", rate: 5   },
+  { value: "Train", label: "Train", icon: "🚂", rate: 7   },
+  { value: "Car",   label: "Car",   icon: "🚗", rate: 10  },
 ];
 
 const PLACE_TYPE_EMOJI: Record<string, string> = {
@@ -30,26 +32,52 @@ const PLACE_TYPE_EMOJI: Record<string, string> = {
 };
 
 function SkeletonRow() {
+  return <div className="skeleton h-20 rounded-xl" />;
+}
+
+// ── Small spinner for inline loading ─────────────────────────
+function Spinner({ size = 16 }: { size?: number }) {
   return (
-    <div className="skeleton h-20 rounded-xl" />
+    <svg
+      style={{ width: size, height: size }}
+      className="animate-spin text-brand-500"
+      viewBox="0 0 24 24"
+      fill="none"
+    >
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+    </svg>
   );
 }
 
 export default function BookTrip() {
   const navigate = useNavigate();
-  const [days, setDays] = useState("");
-  const [persons, setPersons] = useState("");
-  const [startDate, setStartDate] = useState("");
+
+  // ── Form state ────────────────────────────────────────────────
+  const [days, setDays]               = useState("");
+  const [persons, setPersons]         = useState("");
+  const [startDate, setStartDate]     = useState("");
   const [fromLocation, setFromLocation] = useState("");
-  const [transport, setTransport] = useState("");
-  const [distance, setDistance] = useState("");
+  const [transport, setTransport]     = useState("");
+
+  // ── Data state ────────────────────────────────────────────────
   const [selectedPlaces, setSelectedPlaces] = useState<any[]>([]);
-  const [placesData, setPlacesData] = useState<any[]>([]);
-  const [wishlistIds, setWishlistIds] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-  const [filterType, setFilterType] = useState("All");
-  const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
+  const [placesData, setPlacesData]         = useState<any[]>([]);
+  const [wishlistIds, setWishlistIds]       = useState<string[]>([]);
+  const [loading, setLoading]               = useState(true);
+  const [submitting, setSubmitting]         = useState(false);
+  const [filterType, setFilterType]         = useState("All");
+  const [toast, setToast]                   = useState<{ msg: string; type: "success" | "error" } | null>(null);
+
+  // ── Distance state ────────────────────────────────────────────
+  const [distanceKm, setDistanceKm]         = useState<number | null>(null);
+  const [distanceLegs, setDistanceLegs]     = useState<DistanceLeg[]>([]);
+  const [distanceLoading, setDistanceLoading] = useState(false);
+  const [distanceError, setDistanceError]   = useState("");
+  const [distanceFallback, setDistanceFallback] = useState(false);
+
+  // ── Debounce ref for fromLocation / transport changes ─────────
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const showToast = (msg: string, type: "success" | "error" = "success") => {
     setToast({ msg, type });
@@ -75,6 +103,64 @@ export default function BookTrip() {
     } catch {}
   };
 
+  // ── Auto-calculate distance ────────────────────────────────────
+  // Triggers via debounce when fromLocation or transport changes.
+  // Manual recalc triggered by Recalculate button when places change.
+  const calculateDistance = useCallback(async (from: string, trans: string, places: any[]) => {
+    if (!from.trim() || !trans || places.length === 0) {
+      setDistanceKm(null);
+      setDistanceLegs([]);
+      setDistanceError("");
+      setDistanceFallback(false);
+      return;
+    }
+
+    setDistanceLoading(true);
+    setDistanceError("");
+    setDistanceFallback(false);
+
+    try {
+      const placeNames = places.map((p: any) => p.name).filter(Boolean);
+      const result = await fetchRouteDistance(from.trim(), placeNames);
+      setDistanceKm(result.totalDistanceKm);
+      setDistanceLegs(result.legs || []);
+      setDistanceFallback(result.fallback || false);
+    } catch (err: any) {
+      const msg = err?.response?.data?.msg || err?.message || "Could not calculate distance";
+      setDistanceError(msg);
+      setDistanceKm(null);
+    } finally {
+      setDistanceLoading(false);
+    }
+  }, []);
+
+  // ── Debounce: fromLocation / transport changes ─────────────────
+  useEffect(() => {
+    if (!fromLocation.trim() || !transport) {
+      setDistanceKm(null);
+      setDistanceError("");
+      return;
+    }
+    if (selectedPlaces.length === 0) return;
+
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      calculateDistance(fromLocation, transport, selectedPlaces);
+    }, 800);
+
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fromLocation, transport]);
+
+  // ── Manual recalculate (triggered by button, not on each place toggle) ──
+  const handleRecalculate = () => {
+    calculateDistance(fromLocation, transport, selectedPlaces);
+  };
+
+  const needsRecalc = transport && fromLocation.trim() && selectedPlaces.length > 0
+    && distanceKm !== null;
+
+  // ── Wishlist toggle ────────────────────────────────────────────
   const toggleWishlist = async (e: React.MouseEvent, place: any) => {
     e.preventDefault(); e.stopPropagation();
     const isSaved = wishlistIds.includes(place._id);
@@ -103,26 +189,42 @@ export default function BookTrip() {
     }
   };
 
+  // ── Live cost preview (uses auto-computed distance) ───────────
   const costs = useMemo(() => calcCosts(
-    selectedPlaces, Number(days) || 1, Number(persons) || 1, transport, Number(distance) || 0
-  ), [selectedPlaces, days, persons, transport, distance]);
+    selectedPlaces,
+    Number(days) || 1,
+    Number(persons) || 1,
+    transport,
+    distanceKm ?? 0
+  ), [selectedPlaces, days, persons, transport, distanceKm]);
 
   const types = ["All", ...Array.from(new Set(placesData.map((p) => p.type).filter(Boolean)))];
   const filteredPlaces = filterType === "All" ? placesData : placesData.filter((p) => p.type === filterType);
+
+  // ── Build route string for display ────────────────────────────
+  const routeString = useMemo(() => {
+    if (!fromLocation.trim() || selectedPlaces.length === 0) return null;
+    const stops = [fromLocation.trim(), ...selectedPlaces.map((p) => p.name)];
+    return stops.join(" → ");
+  }, [fromLocation, selectedPlaces]);
 
   const handleSubmit = async () => {
     if (!days || Number(days) < 1) return showToast("Enter number of days", "error");
     if (!persons || Number(persons) < 1) return showToast("Enter number of persons", "error");
     if (!startDate) return showToast("Select a start date", "error");
     if (selectedPlaces.length === 0) return showToast("Select at least one place", "error");
-    if (transport && (!distance || Number(distance) < 1))
-      return showToast("Enter estimated distance for transport cost", "error");
 
     setSubmitting(true);
     try {
+      // Backend will auto-compute distance — we just pass metadata
       await API.post("/trips", {
-        places: selectedPlaces, days, persons, startDate, fromLocation,
-        transport, distance: Number(distance) || 0,
+        places: selectedPlaces,
+        days,
+        persons,
+        startDate,
+        fromLocation: fromLocation || "",
+        transport:    transport    || "",
+        // distance is intentionally NOT sent — backend recomputes it
       });
       showToast("Trip Booked Successfully! 🎉");
       setTimeout(() => navigate("/my-trips"), 1500);
@@ -149,7 +251,7 @@ export default function BookTrip() {
         {/* Page header */}
         <div className="mb-8 animate-fade-in">
           <h1 className="text-3xl font-extrabold text-slate-800 mb-1">Plan Your Trip</h1>
-          <p className="text-slate-500 text-sm">Select places, set travel details, and see the live cost breakdown</p>
+          <p className="text-slate-500 text-sm">Select places, set travel details, and see live real-world cost breakdown</p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
@@ -165,10 +267,10 @@ export default function BookTrip() {
               </h2>
               <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-2">
-                  <label className="label-text">From (your city)</label>
-                  <input type="text" placeholder="e.g. Bangalore, Mumbai..."
-                    value={fromLocation} onChange={(e) => setFromLocation(e.target.value)}
-                    className="input-field" />
+                  <LocationSelector
+                    value={fromLocation}
+                    onChange={setFromLocation}
+                  />
                 </div>
                 <div>
                   <label className="label-text">Days *</label>
@@ -206,18 +308,92 @@ export default function BookTrip() {
                 </div>
               </div>
 
-              {/* Distance */}
+              {/* ── Distance Display (auto-computed) ──────────────────── */}
               {transport && (
                 <div className="mt-4 animate-fade-in">
-                  <label className="label-text">Distance (km, one-way) *</label>
-                  <div className="flex items-center gap-3">
-                    <input type="number" min="0" placeholder="e.g. 250" value={distance}
-                      onChange={(e) => setDistance(e.target.value)} className="input-field flex-1" />
-                    <span className="text-sm text-slate-400 whitespace-nowrap">× 2 (return)</span>
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-semibold text-slate-600 flex items-center gap-1.5">
+                        🛣️ Route Distance
+                      </span>
+                      {/* Recalculate button — only shown when places are selected */}
+                      {selectedPlaces.length > 0 && fromLocation.trim() && !distanceLoading && (
+                        <button
+                          type="button"
+                          onClick={handleRecalculate}
+                          className="text-xs text-brand-600 font-semibold px-3 py-1 rounded-lg bg-brand-50 hover:bg-brand-100 border border-brand-200 transition-colors"
+                        >
+                          🔄 Recalculate
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Loading state */}
+                    {distanceLoading && (
+                      <div className="flex items-center gap-2 text-slate-500 text-sm">
+                        <Spinner size={14} />
+                        <span>Calculating route via real road data…</span>
+                      </div>
+                    )}
+
+                    {/* Error */}
+                    {!distanceLoading && distanceError && (
+                      <div className="flex items-start gap-2 text-red-600 text-sm">
+                        <span>⚠️</span>
+                        <span>{distanceError}</span>
+                      </div>
+                    )}
+
+                    {/* Result */}
+                    {!distanceLoading && !distanceError && distanceKm !== null && (
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-2xl font-extrabold text-brand-600 tabular-nums">
+                            {distanceKm.toLocaleString()} km
+                          </span>
+                          {distanceFallback && (
+                            <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
+                              estimated
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Route legs */}
+                        {distanceLegs.length > 0 && (
+                          <div className="flex flex-wrap items-center gap-1 mt-1">
+                            {distanceLegs.map((leg, i) => (
+                              <span key={i} className="flex items-center gap-1 text-xs text-slate-500">
+                                <span className="bg-brand-50 text-brand-700 px-2 py-0.5 rounded-full border border-brand-100 font-medium">
+                                  {leg.from}
+                                </span>
+                                <span className="text-slate-300">→</span>
+                                {i === distanceLegs.length - 1 && (
+                                  <span className="bg-brand-50 text-brand-700 px-2 py-0.5 rounded-full border border-brand-100 font-medium">
+                                    {leg.to}
+                                  </span>
+                                )}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+
+                        <p className="text-xs text-slate-400">
+                          Rate: ₹{TRANSPORT_RATES[transport]}/km/person · auto-calculated via OpenStreetMap
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Prompt: fill in from location */}
+                    {!distanceLoading && !distanceError && distanceKm === null && (
+                      <p className="text-sm text-slate-400">
+                        {!fromLocation.trim()
+                          ? "Enter your From Location above to calculate distance"
+                          : selectedPlaces.length === 0
+                          ? "Select at least one place to calculate route"
+                          : "Calculating…"}
+                      </p>
+                    )}
                   </div>
-                  <p className="text-xs text-slate-400 mt-1">
-                    Rate: ₹{TRANSPORT_RATES[transport]}/km/person — round-trip included
-                  </p>
                 </div>
               )}
             </div>
@@ -255,14 +431,12 @@ export default function BookTrip() {
                 ))}
               </div>
 
-              {/* Skeleton */}
               {loading && (
                 <div className="space-y-3">
-                  {[1,2,3].map((i) => <SkeletonRow key={i} />)}
+                  {[1, 2, 3].map((i) => <SkeletonRow key={i} />)}
                 </div>
               )}
 
-              {/* Empty */}
               {!loading && filteredPlaces.length === 0 && (
                 <div className="text-center py-10 text-slate-400">
                   <p className="text-3xl mb-2">🗺️</p>
@@ -270,7 +444,6 @@ export default function BookTrip() {
                 </div>
               )}
 
-              {/* List */}
               <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
                 {filteredPlaces.map((place, i) => {
                   const isSelected = !!selectedPlaces.find((p) => p.name === place.name);
@@ -314,10 +487,33 @@ export default function BookTrip() {
                 <h2 className="font-bold text-slate-800 text-lg mb-5 flex items-center gap-2">
                   <span className="w-8 h-8 rounded-xl bg-green-100 flex items-center justify-center">💰</span>
                   Cost Breakdown
-                  <span className="ml-auto text-xs text-brand-500 font-normal bg-brand-50 px-2 py-0.5 rounded-full">Live</span>
+                  <span className="ml-auto text-xs font-normal px-2 py-0.5 rounded-full bg-brand-50 text-brand-500">
+                    Live
+                  </span>
                 </h2>
 
                 <div className="space-y-3">
+
+                  {/* Distance row */}
+                  {transport && (
+                    <div className="flex justify-between items-center py-2 border-b border-slate-100">
+                      <span className="text-sm text-slate-600 flex items-center gap-1.5">
+                        🛣️ Distance
+                      </span>
+                      {distanceLoading ? (
+                        <span className="flex items-center gap-1 text-slate-400 text-xs">
+                          <Spinner size={12} /> Calculating…
+                        </span>
+                      ) : distanceKm !== null ? (
+                        <span className="font-semibold text-slate-700 tabular-nums text-sm">
+                          {distanceKm.toLocaleString()} km
+                        </span>
+                      ) : (
+                        <span className="text-slate-400 text-xs">—</span>
+                      )}
+                    </div>
+                  )}
+
                   {[
                     {
                       icon: "🎟",
@@ -339,16 +535,28 @@ export default function BookTrip() {
                       <span className="text-sm text-slate-600 flex items-center gap-1.5">
                         {row.icon} {row.label}
                       </span>
-                      <span className="font-bold text-slate-700 tabular-nums">₹{row.val.toLocaleString()}</span>
+                      {distanceLoading && row.label.startsWith("Transport") ? (
+                        <span className="flex items-center gap-1 text-slate-400 text-xs">
+                          <Spinner size={12} /> …
+                        </span>
+                      ) : (
+                        <span className="font-bold text-slate-700 tabular-nums">₹{row.val.toLocaleString()}</span>
+                      )}
                     </div>
                   ))}
 
                   {/* Total */}
                   <div className="bg-gradient-to-r from-brand-500 to-brand-700 rounded-xl p-4 flex justify-between items-center">
                     <span className="text-white font-bold">💳 Total</span>
-                    <span className="text-white font-extrabold text-xl tabular-nums">
-                      ₹{costs.totalCost.toLocaleString()}
-                    </span>
+                    {distanceLoading ? (
+                      <span className="text-white flex items-center gap-2 text-sm">
+                        <Spinner size={14} /> Updating…
+                      </span>
+                    ) : (
+                      <span className="text-white font-extrabold text-xl tabular-nums">
+                        ₹{costs.totalCost.toLocaleString()}
+                      </span>
+                    )}
                   </div>
 
                   {Number(persons) > 1 && (
@@ -363,9 +571,19 @@ export default function BookTrip() {
                   <p className="font-semibold text-slate-600 mb-1">Formula:</p>
                   <p>🚗 Car ₹10/km · 🚌 Bus ₹5/km · 🚂 Train ₹7/km</p>
                   <p>🍽 ₹150/meal × 3 meals × days × persons</p>
-                  <p>🔄 Distance × 2 (return journey)</p>
+                  <p>🛣️ Real road distance via OpenStreetMap</p>
                 </div>
               </div>
+
+              {/* Route preview */}
+              {routeString && (
+                <div className="card p-4 animate-fade-in">
+                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">
+                    🗺️ Your Route
+                  </p>
+                  <p className="text-sm text-slate-700 leading-relaxed break-words">{routeString}</p>
+                </div>
+              )}
 
               {/* Selected places */}
               {selectedPlaces.length > 0 && (
@@ -393,11 +611,13 @@ export default function BookTrip() {
               {/* Book button */}
               <button
                 onClick={handleSubmit}
-                disabled={submitting}
+                disabled={submitting || distanceLoading}
                 className="w-full btn-primary py-4 text-base font-bold disabled:opacity-60"
               >
                 {submitting
-                  ? <span className="flex items-center justify-center gap-2"><svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>Booking...</span>
+                  ? <span className="flex items-center justify-center gap-2"><Spinner />Booking…</span>
+                  : distanceLoading
+                  ? <span className="flex items-center justify-center gap-2"><Spinner />Calculating route…</span>
                   : `✅ Book Trip — ₹${costs.totalCost.toLocaleString()}`
                 }
               </button>

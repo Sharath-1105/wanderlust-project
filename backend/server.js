@@ -9,6 +9,7 @@ import tripRoutes from "./routes/tripRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
 import wishlistRoutes from "./routes/wishlistRoutes.js";
 import aiRoutes from "./routes/aiRoutes.js";
+import distanceRoutes from "./routes/distanceRoutes.js";
 
 dotenv.config();
 
@@ -25,6 +26,7 @@ app.use("/api/trips", tripRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/wishlist", wishlistRoutes);
 app.use("/api/ai-trip", aiRoutes);
+app.use("/api/distance", distanceRoutes);
 
 
 // ✅ CONNECT DB

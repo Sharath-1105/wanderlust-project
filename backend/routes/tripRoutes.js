@@ -2,6 +2,7 @@ import express from "express";
 import Trip from "../models/Trip.js";
 import { verifyToken } from "../middleware/authMiddleware.js";
 import { calcCosts } from "../utils/costUtils.js";
+import { getRouteDistance, DEFAULT_DISTANCE_KM } from "../utils/geoUtils.js";
 
 const router = express.Router();
 
@@ -21,7 +22,7 @@ const getStatus = (startDate, endDate) => {
 router.post("/", verifyToken, async (req, res) => {
   try {
     let { places, days, persons, startDate,
-          fromLocation, transport, distance } = req.body;
+          fromLocation, transport } = req.body;
 
     // ── Defensive JSON parsing (AI trip sends serialised arrays) ──
     if (typeof places === "string") {
@@ -52,13 +53,34 @@ router.post("/", verifyToken, async (req, res) => {
         msg: `Too many places. Max ${maxPlaces} for ${days} day(s) (3/day limit)`,
       });
 
-    // ── Cost calculation ───────────────────────────────────────
+    // ── BACKEND IS SOURCE OF TRUTH: Auto-compute real-world distance ──────
+    // Never trust the frontend distance value — always recompute from the
+    // actual fromLocation + selected place names using Nominatim + OSRM.
+    let totalDistance = DEFAULT_DISTANCE_KM; // safe fallback
+
+    if (fromLocation && transport) {
+      try {
+        const placeNames = places.map((p) => p.name || p).filter(Boolean);
+        console.log("[BOOK TRIP] Computing route distance…");
+        const result = await getRouteDistance(fromLocation.trim(), placeNames);
+        totalDistance = result.totalKm || DEFAULT_DISTANCE_KM;
+        console.log(`[BOOK TRIP] Route distance: ${totalDistance} km`);
+      } catch (geoErr) {
+        console.warn("[BOOK TRIP] Geo error — using fallback distance:", geoErr.message);
+        totalDistance = DEFAULT_DISTANCE_KM;
+      }
+    } else if (!transport) {
+      // No transport chosen — distance is irrelevant for cost
+      totalDistance = 0;
+    }
+
+    // ── Cost calculation (backend authoritative) ───────────────────────────
     const costs = calcCosts({
       places,
       days:      Number(days),
       persons:   Number(persons),
       transport: transport || "",
-      distance:  Number(distance) || 0,
+      distance:  totalDistance,
     });
 
     // ── End date & status ──────────────────────────────────────
@@ -73,7 +95,8 @@ router.post("/", verifyToken, async (req, res) => {
       persons:       Number(persons),
       fromLocation:  fromLocation || "",
       transport:     transport    || "",
-      distance:      Number(distance) || 0,
+      distance:      totalDistance,      // legacy field
+      totalDistance,                     // new canonical field
       placeCost:     costs.placeCost,
       transportCost: costs.transportCost,
       foodCost:      costs.foodCost,
@@ -84,8 +107,8 @@ router.post("/", verifyToken, async (req, res) => {
     });
 
     await trip.save();
-    console.log("[BOOK TRIP] ✅ saved trip:", trip._id, "| totalCost:", costs.totalCost);
-    res.json(trip);
+    console.log("[BOOK TRIP] ✅ saved trip:", trip._id, "| totalCost:", costs.totalCost, "| distance:", totalDistance, "km");
+    res.json({ ...trip._doc, totalDistance, costs });
   } catch (err) {
     console.error("[BOOK TRIP] ❌ ERROR:", err?.message);
     res.status(500).json({ msg: err?.message || "Error booking trip" });

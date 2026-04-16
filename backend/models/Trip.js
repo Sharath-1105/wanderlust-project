@@ -19,7 +19,8 @@ const tripSchema = new mongoose.Schema(
 
     fromLocation: { type: String, default: "" },
     transport:    { type: String, enum: ["Car", "Bus", "Train", ""], default: "" },
-    distance:     { type: Number, default: 0 },   // km (one-way)
+    distance:     { type: Number, default: 0 },        // km one-way (legacy)
+    totalDistance:{ type: Number, default: 0 },        // km full route (from → p1 → p2 → ...)
 
     // ── Cost breakdown ────────────────────────────────────────
     placeCost:     { type: Number, default: 0 },
