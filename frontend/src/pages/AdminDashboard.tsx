@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, memo } from "react";
 import { useNavigate } from "react-router-dom";
 import API from "../services/api";
 import {
@@ -307,6 +307,24 @@ function Overview({ analytics }: { analytics: any }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 // SECTION: Add Place
 // ═══════════════════════════════════════════════════════════════════════════════
+// Stable Field helper component to prevent unmounting and focus loss
+interface FieldProps {
+  label: string;
+  field: string;
+  value: string;
+  onChange: (field: string, val: string) => void;
+  type?: string;
+  placeholder?: string;
+}
+
+const Field = memo(({ label, field, value, onChange, type = "text", placeholder = "" }: FieldProps) => (
+  <div>
+    <label className={labelCls}>{label}</label>
+    <GlassInput type={type} placeholder={placeholder} value={value}
+      onChange={e => onChange(field, e.target.value)} />
+  </div>
+));
+
 function AddPlace({ onSuccess, showToast }: {
   onSuccess: () => void;
   showToast: (m: string, t?: "success" | "error") => void;
@@ -317,7 +335,7 @@ function AddPlace({ onSuccess, showToast }: {
   };
   const [form, setForm] = useState(empty);
   const [loading, setLoading] = useState(false);
-  const set = (field: string, val: string) => setForm(f => ({ ...f, [field]: val }));
+  const set = useCallback((field: string, val: string) => setForm(f => ({ ...f, [field]: val })), []);
 
   const handleSubmit = async () => {
     if (!form.name.trim()) return showToast("Place name is required", "error");
@@ -340,21 +358,13 @@ function AddPlace({ onSuccess, showToast }: {
     } finally { setLoading(false); }
   };
 
-  const Field = ({ label, field, type = "text", placeholder = "" }: any) => (
-    <div>
-      <label className={labelCls}>{label}</label>
-      <GlassInput type={type} placeholder={placeholder} value={(form as any)[field]}
-        onChange={e => set(field, e.target.value)} />
-    </div>
-  );
-
   return (
     <div>
       <SectionHeading title="Add Place" sub="Add a new destination to the database" icon="➕" />
       <GlassCard className="p-7 max-w-2xl" glow>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-          <Field label="Place Name *" field="name" placeholder="e.g. Mysore Palace" />
-          <Field label="Location" field="location" placeholder="e.g. Mysore, Karnataka" />
+          <Field label="Place Name *" field="name" value={form.name} onChange={set} placeholder="e.g. Mysore Palace" />
+          <Field label="Location" field="location" value={form.location} onChange={set} placeholder="e.g. Mysore, Karnataka" />
           <div className="sm:col-span-2">
             <label className={labelCls}>Image URL</label>
             <GlassInput type="url" placeholder="https://..." value={form.image} onChange={e => set("image", e.target.value)} />
@@ -376,14 +386,14 @@ function AddPlace({ onSuccess, showToast }: {
               {PLACE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
             </GlassSelect>
           </div>
-          <Field label="State" field="state" placeholder="Karnataka" />
-          <Field label="District" field="district" placeholder="Mysore" />
-          <Field label="Price (₹)" field="price" type="number" placeholder="2000" />
-          <Field label="Entry Fee (₹)" field="entryFee" type="number" placeholder="50" />
-          <Field label="Transport Cost (₹)" field="transportCost" type="number" placeholder="100" />
-          <Field label="Rating (0–5)" field="rating" type="number" placeholder="4.2" />
-          <Field label="Latitude (optional)" field="latitude" type="number" placeholder="12.9716" />
-          <Field label="Longitude (optional)" field="longitude" type="number" placeholder="77.5946" />
+          <Field label="State" field="state" value={form.state} onChange={set} placeholder="Karnataka" />
+          <Field label="District" field="district" value={form.district} onChange={set} placeholder="Mysore" />
+          <Field label="Price (₹)" field="price" value={form.price} onChange={set} type="number" placeholder="2000" />
+          <Field label="Entry Fee (₹)" field="entryFee" value={form.entryFee} onChange={set} type="number" placeholder="50" />
+          <Field label="Transport Cost (₹)" field="transportCost" value={form.transportCost} onChange={set} type="number" placeholder="100" />
+          <Field label="Rating (0–5)" field="rating" value={form.rating} onChange={set} type="number" placeholder="4.2" />
+          <Field label="Latitude (optional)" field="latitude" value={form.latitude} onChange={set} type="number" placeholder="12.9716" />
+          <Field label="Longitude (optional)" field="longitude" value={form.longitude} onChange={set} type="number" placeholder="77.5946" />
         </div>
         <div className="mt-6">
           <PrimaryBtn onClick={handleSubmit} disabled={loading} className="w-full py-3 text-base">
