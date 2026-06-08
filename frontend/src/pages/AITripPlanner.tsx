@@ -4,6 +4,7 @@ import API from "../services/api";
 import { fetchRouteDistance, type DistanceLeg } from "../services/distanceApi";
 import Navbar from "../components/Navbar";
 import LocationSelector from "../components/LocationSelector";
+import { SFX } from "../hooks/useSound";
 
 // ─── Types ────────────────────────────────────────────────────
 interface PlaceSuggestion {
@@ -229,12 +230,13 @@ export default function AITripPlanner() {
   // ⚠️ NO real distance calculation here — AI returns estimated cost only.
   const handleGenerate = async () => {
     setError("");
-    if (!budget || !days) return setError("Please enter your budget and number of days.");
-    if (!selectedState) return setError("Please select a state to explore.");
-    if (Number(budget) < 500) return setError("Minimum budget is ₹500.");
-    if (Number(days) < 1 || Number(days) > 30) return setError("Days must be between 1 and 30.");
-    if (selectedInterests.length === 0) return setError("Select at least one interest.");
+    if (!budget || !days) { SFX.error(); return setError("Please enter your budget and number of days."); }
+    if (!selectedState) { SFX.error(); return setError("Please select a state to explore."); }
+    if (Number(budget) < 500) { SFX.error(); return setError("Minimum budget is ₹500."); }
+    if (Number(days) < 1 || Number(days) > 30) { SFX.error(); return setError("Days must be between 1 and 30."); }
+    if (selectedInterests.length === 0) { SFX.error(); return setError("Select at least one interest."); }
 
+    SFX.click();
     setLoading(true);
     setPlan(null);
     setBookingDistanceKm(null);
@@ -251,8 +253,10 @@ export default function AITripPlanner() {
         // ⚠️ distance NOT sent — backend uses estimate for AI planning
       });
       setPlan(res.data.plan);
+      SFX.success();
       setActiveTab("itinerary");
     } catch (err: any) {
+      SFX.error();
       setError(err.response?.data?.msg || "Failed to generate plan. Please try again.");
     } finally {
       setLoading(false);
@@ -350,13 +354,13 @@ export default function AITripPlanner() {
     ?? (plan?.distance && transport ? (TRANSPORT_RATES[transport] || 0) * plan.distance : null);
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC]">
+    <div className="page-base">
       <Navbar title="AI Trip Planner" />
 
       {/* Toast */}
       {toast && (
-        <div className={`fixed top-20 right-5 z-50 px-5 py-3 rounded-xl shadow-xl text-white font-medium text-sm animate-fade-in ${
-          toast.type === "success" ? "bg-emerald-500" : "bg-red-500"
+        <div className={`fixed top-20 right-5 z-50 px-5 py-3.5 rounded-2xl shadow-2xl text-white font-semibold text-sm animate-fade-in ${
+          toast.type === "success" ? "toast-success" : "toast-error"
         }`}>
           {toast.type === "success" ? "✅ " : "❌ "}{toast.msg}
         </div>
@@ -441,14 +445,14 @@ export default function AITripPlanner() {
                 { label: "Places",  value: Math.min((plan?.places || []).length, Number(days) * 3) },
                 { label: "Est. Cost", value: `₹${plan?.totalEstimatedCost?.toLocaleString()}` },
               ].map((s) => (
-                <div key={s.label} className="bg-slate-50 rounded-xl p-3 text-center">
-                  <p className="text-xs text-slate-400">{s.label}</p>
-                  <p className="font-bold text-slate-800 text-sm">{s.value}</p>
+                <div key={s.label} className="bg-slate-50 dark:bg-slate-800 rounded-xl p-3 text-center border dark:border-slate-700">
+                  <p className="text-xs text-slate-400 dark:text-slate-500">{s.label}</p>
+                  <p className="font-bold text-slate-800 dark:text-slate-100 text-sm">{s.value}</p>
                 </div>
               ))}
             </div>
 
-            <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 mb-4 text-xs text-amber-700 flex items-start gap-2">
+            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-900/50 rounded-xl px-3 py-2 mb-4 text-xs text-amber-700 dark:text-amber-400 flex items-start gap-2">
               <span>ℹ️</span>
               <span>Final cost is calculated server-side using real road distance at booking time.</span>
             </div>
@@ -486,11 +490,11 @@ export default function AITripPlanner() {
         </div>
 
         <div className={`grid grid-cols-1 ${plan && !loading ? "xl:grid-cols-2" : ""} gap-8`}>
-          {/* ── LEFT: Input Form ─────────────────────────── */}
+          {/* ── LEFT: Input Form ──────────────────── */}
           <div className="space-y-0">
-            <div className="card p-6 animate-fade-in">
-              <h2 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2">
-                <span className="w-8 h-8 rounded-xl bg-brand-100 flex items-center justify-center text-brand-600">🎯</span>
+            <div className="glass-card p-6 animate-fade-in">
+              <h2 className="text-lg font-extrabold text-slate-800 dark:text-white mb-6 flex items-center gap-2">
+                <span className="w-8 h-8 rounded-xl bg-brand-100 dark:bg-brand-900/40 flex items-center justify-center text-brand-600">🎯</span>
                 Customize Your Trip
               </h2>
 
@@ -643,13 +647,13 @@ export default function AITripPlanner() {
               </div>
 
               {/* Tabs */}
-              <div className="flex bg-white rounded-2xl p-1 shadow-card border border-slate-100">
+              <div className="flex bg-white dark:bg-slate-800 rounded-2xl p-1 shadow-card dark:shadow-none border border-slate-100 dark:border-slate-700">
                 {TABS.map((tab) => (
                   <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-                    className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all ${
+                    className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-all ${
                       activeTab === tab.id
-                        ? "bg-brand-500 text-white shadow-sm"
-                        : "text-slate-600 hover:bg-slate-50"
+                        ? "tab-pill-active"
+                        : "tab-pill-inactive"
                     }`}>
                     {tab.icon} {tab.label}
                   </button>

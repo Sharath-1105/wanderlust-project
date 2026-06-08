@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import API from "../services/api";
 import Navbar from "../components/Navbar";
+import { SFX } from "../hooks/useSound";
 
 const PLACE_TYPES = ["All", "Beach", "Hill", "City", "Forest", "Heritage", "Other"];
 const RATINGS = ["Any", "1", "2", "3", "4", "5"];
@@ -55,7 +56,7 @@ function StarDisplay({ rating }: { rating: number }) {
 /* Skeleton card */
 function SkeletonCard() {
   return (
-    <div className="bg-white rounded-2xl overflow-hidden shadow-card">
+    <div className="card overflow-hidden">
       <div className="skeleton h-44 w-full" />
       <div className="p-5 space-y-3">
         <div className="skeleton h-4 w-3/4 rounded-lg" />
@@ -124,6 +125,7 @@ export default function ExplorePlaces() {
     e.stopPropagation();
     const isSaved = wishlistIds.includes(place._id);
     try {
+      SFX.click();
       if (isSaved) {
         await API.delete(`/wishlist/remove/${place._id}`);
         setWishlistIds((p) => p.filter((id) => id !== place._id));
@@ -131,23 +133,25 @@ export default function ExplorePlaces() {
       } else {
         await API.post(`/wishlist/add/${place._id}`);
         setWishlistIds((p) => [...p, place._id]);
+        SFX.success();
         showToast("Saved to wishlist ❤️");
       }
     } catch {
+      SFX.error();
       showToast("Error updating wishlist", "error");
     }
   };
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC]">
+    <div className="page-base">
       <Navbar title="Explore Places" />
 
       {/* Toast */}
       {toast && (
-        <div className={`fixed top-20 right-5 z-50 px-5 py-3 rounded-xl shadow-xl text-white font-medium text-sm animate-fade-in ${
-          toast.type === "success" ? "bg-emerald-500" : "bg-red-500"
+        <div className={`fixed top-20 right-5 z-50 px-5 py-3.5 rounded-2xl shadow-2xl text-white font-semibold text-sm animate-fade-in ${
+          toast.type === "success" ? "toast-success" : "toast-error"
         }`}>
-          {toast.msg}
+          {toast.type === "success" ? "✅ " : "❌ "}{toast.msg}
         </div>
       )}
 
@@ -155,12 +159,15 @@ export default function ExplorePlaces() {
 
         {/* Page header */}
         <div className="mb-8 animate-fade-in">
-          <h1 className="text-3xl font-extrabold text-slate-800 mb-1">Explore Places</h1>
-          <p className="text-slate-500">Discover India's finest beaches, hills, cities and heritage</p>
+          <div className="inline-flex items-center gap-2 bg-brand-50 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400 text-sm font-semibold px-3 py-1 rounded-full mb-3 border border-brand-100 dark:border-brand-800/40">
+            🗺️ Discover India
+          </div>
+          <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-800 dark:text-white mb-2 tracking-tight">Explore Places</h1>
+          <p className="text-slate-500 dark:text-slate-400">Discover India's finest beaches, hills, cities and heritage</p>
         </div>
 
         {/* Filter Panel */}
-        <div className="card p-6 mb-8 animate-fade-in">
+        <div className="glass-card p-6 mb-8 animate-fade-in">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 items-end">
 
             {/* Type pills */}
@@ -171,10 +178,10 @@ export default function ExplorePlaces() {
                   <button
                     key={t}
                     onClick={() => handleChange("type", t === "All" ? "" : t)}
-                    className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all duration-150 ${
+                    className={`px-3.5 py-1.5 rounded-full text-xs font-bold border transition-all duration-200 ${
                       (t === "All" && !filters.type) || filters.type === t
-                        ? "bg-brand-500 text-white border-brand-500 shadow-sm"
-                        : "bg-white text-slate-600 border-slate-200 hover:border-brand-300"
+                        ? "bg-brand-500 text-white border-brand-500 shadow-md shadow-brand-500/25"
+                        : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-brand-400 hover:text-brand-600"
                     }`}
                   >
                     {TYPE_CONFIG[t]?.icon || "🌐"} {t}
@@ -225,8 +232,8 @@ export default function ExplorePlaces() {
 
         {/* Results count */}
         {!loading && searched && (
-          <p className="text-slate-500 text-sm mb-5 animate-fade-in">
-            {places.length === 0 ? "No places match your filters." : `${places.length} place${places.length > 1 ? "s" : ""} found`}
+          <p className="text-slate-500 dark:text-slate-400 text-sm mb-5 animate-fade-in">
+            {places.length === 0 ? "No places match your filters." : `Showing ${places.length} place${places.length > 1 ? "s" : ""}`}
           </p>
         )}
 
@@ -258,59 +265,61 @@ export default function ExplorePlaces() {
               return (
                 <div
                   key={place._id}
-                  className="card overflow-hidden group animate-fade-in"
-                  style={{ animationDelay: `${i * 40}ms` }}
+                  className="glass-card overflow-hidden group animate-fade-in cursor-pointer"
+                  style={{ animationDelay: `${i * 50}ms` }}
                 >
                   {/* Image / placeholder */}
-                  <div className="relative h-44 overflow-hidden">
+                  <div className="relative h-48 overflow-hidden rounded-t-2xl">
                     {place.image ? (
                       <img
                         src={place.image}
                         alt={place.name}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        className="w-full h-full object-cover group-hover:scale-108 transition-transform duration-600"
                         onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
                       />
                     ) : (
-                      <div className={`w-full h-full flex items-center justify-center text-6xl bg-gradient-to-br ${
-                        place.type === "Beach" ? "from-cyan-100 to-blue-100" :
-                        place.type === "Hill" ? "from-emerald-100 to-green-100" :
-                        place.type === "City" ? "from-violet-100 to-purple-100" :
-                        place.type === "Heritage" ? "from-amber-100 to-yellow-100" :
-                        "from-slate-100 to-slate-50"
-                      }`}>
+                      <div className={`w-full h-full flex items-center justify-center text-7xl bg-gradient-to-br ${
+                        place.type === "Beach" ? "from-cyan-100 to-sky-200" :
+                        place.type === "Hill" ? "from-emerald-100 to-green-200" :
+                        place.type === "City" ? "from-violet-100 to-purple-200" :
+                        place.type === "Heritage" ? "from-amber-100 to-yellow-200" :
+                        "from-slate-100 to-slate-200"
+                      } dark:opacity-80`}>
                         {cfg.icon}
                       </div>
                     )}
+                    {/* Gradient overlay at bottom */}
+                    <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/40 to-transparent" />
                     {/* Type badge */}
-                    <span className={`absolute top-3 left-3 ${cfg.bg} ${cfg.color} text-xs font-semibold px-2.5 py-1 rounded-full`}>
+                    <span className={`absolute top-3 left-3 ${cfg.bg} ${cfg.color} text-xs font-bold px-2.5 py-1 rounded-full backdrop-blur-sm shadow`}>
                       {cfg.icon} {place.type}
                     </span>
                     {/* Wishlist */}
                     <button
                       onClick={(e) => toggleWishlist(e, place)}
-                      className="absolute top-3 right-3 w-8 h-8 bg-white/90 backdrop-blur rounded-full flex items-center justify-center shadow hover:scale-110 transition-transform"
+                      className="absolute top-3 right-3 w-9 h-9 bg-white/90 dark:bg-slate-800/90 backdrop-blur rounded-full flex items-center justify-center shadow-lg hover:scale-110 transition-all duration-200 text-lg"
                     >
                       {isSaved ? "❤️" : "🤍"}
                     </button>
                   </div>
 
                   <div className="p-5">
-                    <h3 className="font-bold text-slate-800 text-base mb-1 line-clamp-1">
+                    <h3 className="font-extrabold text-slate-800 dark:text-white text-base mb-1 line-clamp-1 tracking-tight">
                       {place.name}
                     </h3>
-                    <p className="text-slate-500 text-xs mb-2">
+                    <p className="text-brand-600 dark:text-brand-400 text-xs font-medium mb-2">
                       📍 {[place.location, place.district, place.state].filter(Boolean).join(", ") || "India"}
                     </p>
                     <StarDisplay rating={place.rating} />
 
                     <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                      <div className="bg-slate-50 rounded-xl px-3 py-2">
-                        <span className="text-slate-400 block">Price</span>
-                        <span className="font-bold text-slate-700">₹{place.price || "—"}</span>
+                      <div className="bg-brand-50 dark:bg-brand-900/20 rounded-xl px-3 py-2">
+                        <span className="text-brand-400 dark:text-brand-500 block text-[10px] uppercase font-semibold tracking-wide">Price</span>
+                        <span className="font-bold text-brand-700 dark:text-brand-300">₹{place.price || "—"}</span>
                       </div>
-                      <div className="bg-slate-50 rounded-xl px-3 py-2">
-                        <span className="text-slate-400 block">Entry Fee</span>
-                        <span className="font-bold text-slate-700">₹{place.entryFee || "—"}</span>
+                      <div className="bg-brand-50 dark:bg-brand-900/20 rounded-xl px-3 py-2">
+                        <span className="text-brand-400 dark:text-brand-500 block text-[10px] uppercase font-semibold tracking-wide">Entry Fee</span>
+                        <span className="font-bold text-brand-700 dark:text-brand-300">₹{place.entryFee || "—"}</span>
                       </div>
                     </div>
 
@@ -318,7 +327,7 @@ export default function ExplorePlaces() {
                       onClick={() => navigate("/book-trip")}
                       className="mt-4 w-full btn-primary py-2.5 text-sm"
                     >
-                      Book This Place
+                      ✈️ Book This Place
                     </button>
                   </div>
                 </div>

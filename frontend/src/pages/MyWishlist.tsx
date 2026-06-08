@@ -63,15 +63,15 @@ export default function MyWishlist() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC]">
+    <div className="page-base">
       <Navbar title="My Wishlist" />
 
       {/* Toast */}
       {toast && (
-        <div className={`fixed top-20 right-5 z-50 px-5 py-3 rounded-xl shadow-xl text-white font-medium text-sm animate-fade-in ${
-          toast.type === "success" ? "bg-emerald-500" : "bg-red-500"
+        <div className={`fixed top-20 right-5 z-50 px-5 py-3.5 rounded-2xl shadow-2xl text-white font-semibold text-sm animate-fade-in ${
+          toast.type === "success" ? "toast-success" : "toast-error"
         }`}>
-          {toast.msg}
+          {toast.type === "success" ? "✅ " : "❌ "}{toast.msg}
         </div>
       )}
 
@@ -79,10 +79,13 @@ export default function MyWishlist() {
 
         {/* Header */}
         <div className="mb-8 animate-fade-in">
-          <h1 className="text-3xl font-extrabold text-slate-800 mb-1 flex items-center gap-2">
-            ❤️ My Wishlist
+          <div className="inline-flex items-center gap-2 bg-pink-50 dark:bg-pink-900/20 text-pink-600 dark:text-pink-400 text-sm font-semibold px-3 py-1 rounded-full mb-3 border border-pink-100 dark:border-pink-900/40">
+            ❤️ Saved Places
+          </div>
+          <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-800 dark:text-white mb-2 tracking-tight">
+            My Wishlist
           </h1>
-          <p className="text-slate-500 text-sm">Places you've saved — ready to book whenever you are</p>
+          <p className="text-slate-500 dark:text-slate-400 text-sm">Places you've saved — ready to book whenever you are</p>
         </div>
 
         {/* Skeleton */}
@@ -94,10 +97,10 @@ export default function MyWishlist() {
 
         {/* Empty */}
         {!loading && wishlist.length === 0 && (
-          <div className="card p-16 text-center animate-fade-in">
-            <div className="text-6xl mb-4 animate-pulse">🤍</div>
-            <h3 className="text-xl font-bold text-slate-700 mb-2">Your wishlist is empty</h3>
-            <p className="text-slate-500 text-sm mb-8">
+          <div className="glass-card p-16 text-center animate-fade-in">
+            <div className="text-6xl mb-4 animate-float">🤍</div>
+            <h3 className="text-xl font-bold text-slate-700 dark:text-white mb-2">Your wishlist is empty</h3>
+            <p className="text-slate-500 dark:text-slate-400 text-sm mb-8">
               Tap the ❤️ on any place while exploring to save it here.
             </p>
             <div className="flex gap-3 justify-center flex-wrap">
@@ -117,7 +120,7 @@ export default function MyWishlist() {
             {wishlist.map((place, i) => (
               <div
                 key={place._id}
-                className="card overflow-hidden group animate-fade-in"
+                className="glass-card overflow-hidden group animate-fade-in cursor-pointer"
                 style={{ animationDelay: `${i * 50}ms` }}
               >
                 {/* Image / gradient */}
@@ -145,7 +148,7 @@ export default function MyWishlist() {
                 </div>
 
                 <div className="p-5">
-                  <h2 className="font-bold text-slate-800 text-base mb-1 line-clamp-1">{place.name}</h2>
+                  <h2 className="font-extrabold text-slate-800 dark:text-white text-base mb-1 line-clamp-1 tracking-tight">{place.name}</h2>
                   {place.district && (
                     <p className="text-sm text-slate-500 mb-3">
                       📍 {place.district}, {place.state}
@@ -153,13 +156,13 @@ export default function MyWishlist() {
                   )}
 
                   <div className="grid grid-cols-2 gap-2 text-xs mb-4">
-                    <div className="bg-slate-50 rounded-xl px-3 py-2">
-                      <span className="text-slate-400 block">Entry Fee</span>
-                      <span className="font-bold text-slate-700">₹{place.entryFee || "—"}</span>
+                    <div className="bg-brand-50 dark:bg-brand-900/20 rounded-xl px-3 py-2">
+                      <span className="text-brand-400 dark:text-brand-500 block text-[10px] uppercase font-semibold tracking-wide">Entry Fee</span>
+                      <span className="font-bold text-brand-700 dark:text-brand-300">₹{place.entryFee || "—"}</span>
                     </div>
-                    <div className="bg-slate-50 rounded-xl px-3 py-2">
-                      <span className="text-slate-400 block">Transport</span>
-                      <span className="font-bold text-slate-700">₹{place.transportCost || "—"}</span>
+                    <div className="bg-brand-50 dark:bg-brand-900/20 rounded-xl px-3 py-2">
+                      <span className="text-brand-400 dark:text-brand-500 block text-[10px] uppercase font-semibold tracking-wide">Transport</span>
+                      <span className="font-bold text-brand-700 dark:text-brand-300">₹{place.transportCost || "—"}</span>
                     </div>
                   </div>
 

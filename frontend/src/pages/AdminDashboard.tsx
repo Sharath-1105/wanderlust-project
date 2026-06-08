@@ -25,7 +25,7 @@ interface Trip {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const PLACE_TYPES = ["Beach", "Hill", "City", "Forest", "Heritage", "Other"];
-const PIE_COLORS  = ["#06b6d4", "#8b5cf6", "#f59e0b", "#10b981", "#ef4444", "#6b7280"];
+const PIE_COLORS  = ["#0ea5e9", "#22c55e", "#f97316", "#8b5cf6", "#ef4444", "#f59e0b"];
 
 const NAV_ITEMS = [
   { id: "overview",  label: "Overview",     icon: "⚡" },
@@ -247,7 +247,7 @@ function PrimaryBtn({ onClick, disabled, children, className = "" }: {
   return (
     <button onClick={onClick} disabled={disabled}
       className={`px-5 py-2.5 rounded-xl text-sm font-bold text-white transition-all disabled:opacity-50 hover:scale-[1.02] active:scale-95 ${className}`}
-      style={{ background: "linear-gradient(135deg, #6366f1, #4f46e5)", boxShadow: "0 4px 14px rgba(99,102,241,0.35)" }}>
+      style={{ background: "linear-gradient(135deg, #0ea5e9, #0284c7)", boxShadow: "0 4px 14px rgba(14,165,233,0.35)" }}>
       {children}
     </button>
   );

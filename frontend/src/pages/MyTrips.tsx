@@ -68,15 +68,18 @@ export default function MyTrips() {
     setExpandedTrip((prev) => (prev === tripId ? null : tripId));
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC]">
+    <div className="page-base">
       <Navbar title="My Trips" />
 
       <div className="max-w-4xl mx-auto px-4 sm:px-6 pt-24 pb-16">
 
         {/* Header */}
         <div className="mb-8 animate-fade-in">
-          <h1 className="text-3xl font-extrabold text-slate-800 mb-1">My Trips</h1>
-          <p className="text-slate-500 text-sm">Track all your booked adventures in one place</p>
+          <div className="inline-flex items-center gap-2 bg-brand-50 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400 text-sm font-semibold px-3 py-1 rounded-full mb-3 border border-brand-100 dark:border-brand-800/40">
+            🧓 Your Adventures
+          </div>
+          <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-800 dark:text-white mb-2 tracking-tight">My Trips</h1>
+          <p className="text-slate-500 dark:text-slate-400 text-sm">Track all your booked adventures in one place</p>
         </div>
 
         {/* Loading */}
@@ -88,7 +91,7 @@ export default function MyTrips() {
 
         {/* Error */}
         {error && (
-          <div className="card p-6 border-red-200 bg-red-50 text-red-700 text-center animate-fade-in">
+          <div className="glass-card p-6 border-red-200 dark:border-red-800/40 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 text-center animate-fade-in">
             <p className="text-3xl mb-2">😕</p>
             <p className="font-semibold">{error}</p>
           </div>
@@ -96,10 +99,10 @@ export default function MyTrips() {
 
         {/* Empty */}
         {!loading && !error && trips.length === 0 && (
-          <div className="card p-16 text-center animate-fade-in">
-            <div className="text-6xl mb-4">✈️</div>
-            <h3 className="text-xl font-bold text-slate-700 mb-2">No trips booked yet!</h3>
-            <p className="text-slate-500 text-sm mb-8">Start exploring India — one destination at a time</p>
+          <div className="glass-card p-16 text-center animate-fade-in">
+            <div className="text-6xl mb-4 animate-float">✈️</div>
+            <h3 className="text-xl font-bold text-slate-700 dark:text-white mb-2">No trips booked yet!</h3>
+            <p className="text-slate-500 dark:text-slate-400 text-sm mb-8">Start exploring India — one destination at a time</p>
             <div className="flex gap-3 justify-center flex-wrap">
               <button onClick={() => navigate("/book-trip")} className="btn-primary px-6 py-2.5">
                 📋 Book a Trip
@@ -123,7 +126,7 @@ export default function MyTrips() {
             return (
               <div
                 key={trip._id}
-                className="card overflow-hidden animate-fade-in"
+                className="glass-card overflow-hidden animate-fade-in"
                 style={{ animationDelay: `${idx * 60}ms` }}
               >
                 <div className="p-6 pb-4">
@@ -136,8 +139,8 @@ export default function MyTrips() {
                           {cfg.label}
                         </span>
                       </div>
-                      <h2 className="text-xl font-extrabold text-slate-800">Trip Summary</h2>
-                      <p className="text-sm text-slate-500 mt-0.5">
+                      <h2 className="text-xl font-extrabold text-slate-800 dark:text-white">Trip Summary</h2>
+                      <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
                         {trip.startDate ? new Date(trip.startDate).toDateString() : "Date TBD"}
                         {trip.endDate ? ` → ${new Date(trip.endDate).toDateString()}` : ""}
                       </p>
@@ -175,17 +178,17 @@ export default function MyTrips() {
 
                   {/* Stats */}
                   <div className="grid grid-cols-3 gap-3 mb-4">
-                    {[
-                      { icon: "📅", label: "Days", value: trip.days },
-                      { icon: "👥", label: "Persons", value: trip.persons },
-                      { icon: "📍", label: "Places", value: places.length },
-                    ].map((s) => (
-                      <div key={s.label} className="bg-slate-50 rounded-2xl p-3 text-center">
-                        <p className="text-xl">{s.icon}</p>
-                        <p className="text-xs text-slate-400 mt-0.5">{s.label}</p>
-                        <p className="font-bold text-slate-800">{s.value}</p>
-                      </div>
-                    ))}
+                      {[
+                        { icon: "📅", label: "Days", value: trip.days },
+                        { icon: "👥", label: "Persons", value: trip.persons },
+                        { icon: "📍", label: "Places", value: places.length },
+                      ].map((s) => (
+                        <div key={s.label} className="bg-brand-50 dark:bg-brand-900/20 rounded-2xl p-3 text-center">
+                          <p className="text-xl">{s.icon}</p>
+                          <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{s.label}</p>
+                          <p className="font-bold text-slate-800 dark:text-white">{s.value}</p>
+                        </div>
+                      ))}
                   </div>
 
                   {/* Cost breakdown row */}

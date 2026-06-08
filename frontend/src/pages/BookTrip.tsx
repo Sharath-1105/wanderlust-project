@@ -4,6 +4,7 @@ import { fetchRouteDistance, type DistanceLeg } from "../services/distanceApi";
 import { useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import LocationSelector from "../components/LocationSelector";
+import { SFX } from "../hooks/useSound";
 
 // ─── Shared cost constants (mirrors backend costUtils.js) ────
 const TRANSPORT_RATES: Record<string, number> = { Car: 10, Bus: 5, Train: 7 };
@@ -209,12 +210,13 @@ export default function BookTrip() {
   }, [fromLocation, selectedPlaces]);
 
   const handleSubmit = async () => {
-    if (!days || Number(days) < 1) return showToast("Enter number of days", "error");
-    if (!persons || Number(persons) < 1) return showToast("Enter number of persons", "error");
-    if (!startDate) return showToast("Select a start date", "error");
-    if (selectedPlaces.length === 0) return showToast("Select at least one place", "error");
+    if (!days || Number(days) < 1) { SFX.error(); return showToast("Enter number of days", "error"); }
+    if (!persons || Number(persons) < 1) { SFX.error(); return showToast("Enter number of persons", "error"); }
+    if (!startDate) { SFX.error(); return showToast("Select a start date", "error"); }
+    if (selectedPlaces.length === 0) { SFX.error(); return showToast("Select at least one place", "error"); }
 
     setSubmitting(true);
+    SFX.click();
     try {
       // Backend will auto-compute distance — we just pass metadata
       await API.post("/trips", {
@@ -226,23 +228,25 @@ export default function BookTrip() {
         transport:    transport    || "",
         // distance is intentionally NOT sent — backend recomputes it
       });
+      SFX.success();
       showToast("Trip Booked Successfully! 🎉");
       setTimeout(() => navigate("/my-trips"), 1500);
     } catch (err: any) {
+      SFX.error();
       showToast(err?.response?.data?.msg || "Error booking trip", "error");
     } finally { setSubmitting(false); }
   };
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC]">
+    <div className="page-base">
       <Navbar title="Book a Trip" />
 
       {/* Toast */}
       {toast && (
-        <div className={`fixed top-20 right-5 z-50 px-5 py-3 rounded-xl shadow-xl text-white font-medium text-sm animate-fade-in ${
-          toast.type === "success" ? "bg-emerald-500" : "bg-red-500"
+        <div className={`fixed top-20 right-5 z-50 px-5 py-3.5 rounded-2xl shadow-2xl text-white font-semibold text-sm animate-fade-in ${
+          toast.type === "success" ? "toast-success" : "toast-error"
         }`}>
-          {toast.msg}
+          {toast.type === "success" ? "✅ " : "❌ "}{toast.msg}
         </div>
       )}
 
@@ -250,8 +254,11 @@ export default function BookTrip() {
 
         {/* Page header */}
         <div className="mb-8 animate-fade-in">
-          <h1 className="text-3xl font-extrabold text-slate-800 mb-1">Plan Your Trip</h1>
-          <p className="text-slate-500 text-sm">Select places, set travel details, and see live real-world cost breakdown</p>
+          <div className="inline-flex items-center gap-2 bg-brand-50 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400 text-sm font-semibold px-3 py-1 rounded-full mb-3 border border-brand-100 dark:border-brand-800/40">
+            ✈️ Plan Your Journey
+          </div>
+          <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-800 dark:text-white mb-2 tracking-tight">Book a Trip</h1>
+          <p className="text-slate-500 dark:text-slate-400 text-sm">Select places, set travel details, and see live real-world cost breakdown</p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
@@ -260,9 +267,9 @@ export default function BookTrip() {
           <div className="lg:col-span-3 space-y-6">
 
             {/* Trip Details Card */}
-            <div className="card p-6 animate-fade-in">
-              <h2 className="font-bold text-slate-800 text-lg mb-5 flex items-center gap-2">
-                <span className="w-8 h-8 rounded-xl bg-brand-100 flex items-center justify-center text-brand-600">📋</span>
+            <div className="glass-card p-6 animate-fade-in">
+              <h2 className="font-extrabold text-slate-900 dark:text-white text-lg mb-5 flex items-center gap-2">
+                <span className="w-8 h-8 rounded-xl bg-brand-100 dark:bg-brand-900/40 flex items-center justify-center text-brand-600 dark:text-brand-400">📋</span>
                 Trip Details
               </h2>
               <div className="grid grid-cols-2 gap-4">
@@ -399,9 +406,9 @@ export default function BookTrip() {
             </div>
 
             {/* Places Card */}
-            <div className="card p-6 animate-fade-in" style={{ animationDelay: "80ms" }}>
+            <div className="glass-card p-6 animate-fade-in" style={{ animationDelay: "80ms" }}>
               <div className="flex items-center justify-between mb-4">
-                <h2 className="font-bold text-slate-800 text-lg flex items-center gap-2">
+                <h2 className="font-extrabold text-slate-800 dark:text-white text-lg flex items-center gap-2">
                   <span className="w-8 h-8 rounded-xl bg-indigo-100 flex items-center justify-center text-indigo-600">📍</span>
                   Select Places
                   {selectedPlaces.length > 0 && (
@@ -483,8 +490,8 @@ export default function BookTrip() {
             <div className="sticky top-24 space-y-4">
 
               {/* Cost Card */}
-              <div className="card p-6 animate-fade-in" style={{ animationDelay: "120ms" }}>
-                <h2 className="font-bold text-slate-800 text-lg mb-5 flex items-center gap-2">
+              <div className="glass-card p-6 animate-fade-in" style={{ animationDelay: "120ms" }}>
+                <h2 className="font-extrabold text-slate-800 dark:text-white text-lg mb-5 flex items-center gap-2">
                   <span className="w-8 h-8 rounded-xl bg-green-100 flex items-center justify-center">💰</span>
                   Cost Breakdown
                   <span className="ml-auto text-xs font-normal px-2 py-0.5 rounded-full bg-brand-50 text-brand-500">
